@@ -15,3 +15,12 @@ subprojects {
         }
     }
 }
+
+// Root-level `./gradlew run` → j-claw demo end-to-end.
+// Builds & installs both mock MCP servers (via :jclaw-koog:run's own dependsOn),
+// then launches the agent.
+tasks.register("run") {
+    group = "application"
+    description = "Run j-claw end-to-end (builds & launches both mock MCP servers, then the agent)"
+    dependsOn(":jclaw-koog:run")
+}

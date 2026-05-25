@@ -19,3 +19,12 @@ dependencies {
 application {
     mainClass.set("com.jbaruch.jclaw.koog.MainKt")
 }
+
+// `./gradlew :jclaw-koog:run` builds & installs both mock MCP servers first
+// so Main.kt can launch them as subprocesses without manual prebuild.
+tasks.named("run") {
+    dependsOn(
+        ":mocks:calendar-mcp:installDist",
+        ":mocks:organizer-mcp:installDist",
+    )
+}
