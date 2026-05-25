@@ -4,6 +4,7 @@ import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.core.tools.reflect.asTools
 import ai.koog.agents.mcp.McpToolRegistryProvider
+import ai.koog.agents.mcp.fromProcess
 import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
 import ai.koog.prompt.executor.llms.MultiLLMPromptExecutor
 import ai.koog.prompt.executor.clients.openai.OpenAILLMClient

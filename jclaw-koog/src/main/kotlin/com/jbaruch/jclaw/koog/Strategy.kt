@@ -1,14 +1,15 @@
 package com.jbaruch.jclaw.koog
 
-import ai.koog.agents.core.agent.AIAgentGraphStrategy
-import ai.koog.agents.core.dsl.builder.forwardTo
+import ai.koog.agents.core.agent.entity.AIAgentGraphStrategy
 import ai.koog.agents.core.dsl.builder.strategy
-import ai.koog.agents.core.dsl.extension.onCondition
 import ai.koog.agents.core.tools.ToolBase
+import ai.koog.agents.ext.agent.CriticResult
 import ai.koog.agents.ext.agent.subgraphWithTask
 import ai.koog.agents.ext.agent.subgraphWithVerification
-import ai.koog.prompt.executor.clients.openai.OpenAIModels
+// forwardTo / onCondition / transformed are infix MEMBER functions
+// on AIAgentNodeBase / AIAgentEdgeBuilderIntermediate — no imports needed.
 import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
+import ai.koog.prompt.executor.clients.openai.OpenAIModels
 
 /**
  * The four-phase j-claw pipeline — SPEC.md §4.
@@ -30,7 +31,7 @@ fun buildJclawStrategy(
         val identifyDecline by subgraphWithTask<String, DeclineRequest>(
             tools = userTools + readTools,
             name = "identifyDecline",
-            llmModel = OpenAIModels.Chat.GPT4o, // cheap classification tier
+            llmModel = OpenAIModels.Chat.GPT4o,
         ) { input ->
             """
             Identify what Baruch wants to decline. Pull his calendar, check his prior excuses
@@ -43,7 +44,7 @@ fun buildJclawStrategy(
         val deployDecline by subgraphWithTask<DeclineRequest, DeclineDeployment>(
             tools = readTools + writeTools,  // NO user tools — commit silently
             name = "deployDecline",
-            llmModel = AnthropicModels.Sonnet_4_5,  // mid-tier action
+            llmModel = AnthropicModels.Sonnet_4,
         ) { request ->
             """
             Deploy a decline. Pick an excuse flavor — but NEVER reuse one in
@@ -55,8 +56,8 @@ fun buildJclawStrategy(
         }
 
         val verifyDecline by subgraphWithVerification<DeclineDeployment>(
-            tools = userTools + readTools,  // can ask Baruch — cannot mutate further
-            llmModel = OpenAIModels.Chat.O3,  // reasoning tier
+            tools = userTools + readTools,
+            llmModel = OpenAIModels.Chat.O3,
         ) { deployment ->
             """
             Pressure-test this decline. Would it survive contact with the organizer the next day?
@@ -69,7 +70,7 @@ fun buildJclawStrategy(
         val refineDecline by subgraphWithTask<String, DeclineDeployment>(
             tools = readTools + writeTools,
             name = "refineDecline",
-            llmModel = AnthropicModels.Sonnet_4_5,
+            llmModel = AnthropicModels.Sonnet_4,
         ) { feedback ->
             """
             Tighten the decline. The previous attempt failed verification with this feedback:
@@ -80,7 +81,7 @@ fun buildJclawStrategy(
         edge(nodeStart forwardTo identifyDecline)
         edge(identifyDecline forwardTo deployDecline)
         edge(deployDecline forwardTo verifyDecline)
-        edge(verifyDecline forwardTo nodeFinish onCondition { it.successful } transformed { it.input })
-        edge(verifyDecline forwardTo refineDecline onCondition { !it.successful } transformed { it.feedback ?: "(no feedback)" })
+        edge(verifyDecline forwardTo nodeFinish onCondition { it: CriticResult<DeclineDeployment> -> it.successful } transformed { it.input })
+        edge(verifyDecline forwardTo refineDecline onCondition { it: CriticResult<DeclineDeployment> -> !it.successful } transformed { it.feedback ?: "(no feedback)" })
         edge(refineDecline forwardTo verifyDecline)
     }

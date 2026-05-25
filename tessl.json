@@ -1,0 +1,12 @@
+{
+  "name": "jclaw-demo",
+  "mode": "vendored",
+  "dependencies": {
+    "jbaruch/tamboui": {
+      "version": "0.1.1"
+    },
+    "jbaruch/koog": {
+      "version": "0.3.1"
+    }
+  }
+}
