@@ -22,7 +22,10 @@ application {
 
 // `./gradlew :jclaw-koog:run` builds & installs both mock MCP servers first
 // so Main.kt can launch them as subprocesses without manual prebuild.
-tasks.named("run") {
+// Working dir is forced to repo root so Main.kt's relative paths resolve.
+tasks.named<JavaExec>("run") {
+    workingDir = rootProject.projectDir
+    standardInput = System.`in`   // forward terminal stdin so awaitReaction sees y/n keystrokes
     dependsOn(
         ":mocks:calendar-mcp:installDist",
         ":mocks:organizer-mcp:installDist",

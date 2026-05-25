@@ -41,6 +41,16 @@ fun main(args: Array<String>) = runBlocking {
     val chatOutbound: (String) -> Unit = { println(it) }
     val reactions = Channel<String>(capacity = 16)
 
+    // stdin reader — daemon thread so it doesn't block JVM shutdown.
+    Thread {
+        val reader = System.`in`.bufferedReader()
+        while (true) {
+            val line = reader.readLine() ?: break
+            val trimmed = line.trim()
+            if (trimmed.isNotEmpty()) reactions.trySend(trimmed)
+        }
+    }.apply { isDaemon = true; name = "stdin-reactions" }.start()
+
     val userTools = UserTools(outbound = chatOutbound, reactions = reactions)
     val readTools = ReadTools(priorDeclines = SeedMemory.priorDeclines)
 
@@ -57,11 +67,16 @@ fun main(args: Array<String>) = runBlocking {
         AnthropicLLMClient(anthropicKey),
     )
 
-    // ----- The strategy -----
+    // ----- The strategy ----- each MCP tool lives in exactly one slice (no duplicates across read/write).
+    val calRead  = calendarRegistry.tools.filter  { it.descriptor.name == "getCalendar" }
+    val calWrite = calendarRegistry.tools.filter  { it.descriptor.name == "createCalendarEvent" }
+    val orgRead  = organizerRegistry.tools.filter { it.descriptor.name == "getOrganizerSensitivity" }
+    val orgWrite = organizerRegistry.tools.filter { it.descriptor.name == "sendDecline" }
+
     val strategy = buildJclawStrategy(
         userTools = userTools.asTools(),
-        readTools = readTools.asTools() + calendarRegistry.tools + organizerRegistry.tools.filter { it.descriptor.name == "getOrganizerSensitivity" },
-        writeTools = organizerRegistry.tools.filter { it.descriptor.name == "sendDecline" } + calendarRegistry.tools.filter { it.descriptor.name == "createCalendarEvent" },
+        readTools = readTools.asTools() + calRead + orgRead,
+        writeTools = calWrite + orgWrite,
     )
 
     // ----- Agent -----

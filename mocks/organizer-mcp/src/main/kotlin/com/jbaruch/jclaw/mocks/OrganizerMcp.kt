@@ -6,6 +6,7 @@ import ai.koog.agents.core.tools.annotations.Tool
 import ai.koog.agents.core.tools.reflect.ToolSet
 import ai.koog.agents.core.tools.reflect.asTools
 import ai.koog.agents.mcp.server.startStdioMcpServer
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -59,8 +60,12 @@ class OrganizerTools : ToolSet {
     )
 }
 
-fun main() = runBlocking {
-    val registry = ToolRegistry { tools(OrganizerTools().asTools()) }
-    System.err.println("[organizer-mcp] starting stdio MCP server with ${OrganizerTools::class.simpleName}")
-    startStdioMcpServer(registry)
+fun main() {
+    runBlocking {
+        val registry = ToolRegistry { tools(OrganizerTools().asTools()) }
+        System.err.println("[organizer-mcp] starting stdio MCP server with ${OrganizerTools::class.simpleName}")
+        startStdioMcpServer(registry)
+        // startStdioMcpServer returns after setup; keep JVM alive so the server keeps processing stdin.
+        awaitCancellation()
+    }
 }
