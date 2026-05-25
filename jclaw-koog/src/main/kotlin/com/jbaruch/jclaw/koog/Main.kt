@@ -120,7 +120,11 @@ fun main(args: Array<String>) {
             }
 
             // Greet, then wait for the initial user message.
-            tui.chat("j-claw: hey Baruch — what dinner are we declining tonight?")
+            tui.chat(
+                "j-claw: Good evening, sir. The hour grows civil and your calendar grows uncivil. " +
+                    "From which obligation are we to engineer your gracious extraction tonight — " +
+                    "with grace, with conviction, and with the absolute minimum of perjury?"
+            )
             val initial = if (args.isNotEmpty()) args.joinToString(" ") else submissions.receive()
             if (args.isNotEmpty()) {
                 // Auto-fire path also surfaces the implicit input in CHAT.

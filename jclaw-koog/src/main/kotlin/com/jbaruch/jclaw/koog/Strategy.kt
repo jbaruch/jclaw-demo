@@ -77,27 +77,35 @@ fun buildJclawStrategy(
             Pressure-test this decline. You decide successful = true or false; if false, provide
             actionable feedback the refiner can use to pick a better flavor.
 
-            REJECT (successful = false) when ANY of these is true:
+            STEP 1 — Apply the autonomous rules. REJECT (successful = false) when ANY is true:
 
-            1. The flavor was recently used. Call searchPriorExcuses to fetch Baruch's recent
-               declines and check whether deployment.flavor appears in that list. If yes, fail
-               with feedback naming the duplicate flavor and the organizer it was last used with.
+            (a) The flavor was recently used. Call searchPriorExcuses to fetch Baruch's recent
+                declines and check whether deployment.flavor appears there. If yes, fail with
+                feedback naming the duplicate flavor and the organizer it was last used with.
 
-            2. The flavor is BARUCH_CLASSIC. This is the "I have to go take care of Jenny" answer
-               and is tier JENNY_FROM_THE_BLOCK — too thin for any real organizer. Fail with
-               feedback "BARUCH_CLASSIC is tier JENNY_FROM_THE_BLOCK; pick a CREDIBLE flavor."
+            (b) The flavor is BARUCH_CLASSIC. This is the "I have to go take care of Jenny."
+                answer and is tier JENNY_FROM_THE_BLOCK — too thin for any real organizer.
+                Fail with feedback "BARUCH_CLASSIC is tier JENNY_FROM_THE_BLOCK; pick a CREDIBLE flavor."
 
-            3. The message to the organizer is shorter than two sentences, or contains TODO,
-               placeholder text, or square-bracketed unfilled fields.
+            (c) The message to the organizer is shorter than two sentences, or contains TODO,
+                placeholder text, or square-bracketed unfilled fields.
 
-            4. The hallway script is empty or trivially copies the message to the organizer.
+            (d) The hallway script is empty or trivially copies the message to the organizer.
 
-            5. The excuse contradicts the attendee list — for example, claiming Baruch is
-               out of town when a known attendee is someone he would have run into earlier
-               that day, or claiming a family emergency where an attendee would expect Baruch
-               at the venue regardless.
+            (e) The excuse contradicts the attendee list — for example, claiming Baruch is
+                out of town when a known attendee is someone he would have run into earlier
+                that day.
 
-            Otherwise, successful = true. Pass the deployment through unchanged.
+            If ANY of (a)–(e) fires, set successful=false with the matching feedback and STOP.
+            Do not bother Baruch when the proposal is already obviously wrong.
+
+            STEP 2 — If the autonomous rules all pass, ASK BARUCH. Use the awaitReaction tool
+            with a one-line summary like:
+              "Send to <organizer>: flavor=<FLAVOR>, opener='<first ~80 chars of message>…' — y / n?"
+            Baruch responds with "y" (approve) or "n" (reject).
+            - If "y" → successful = true.
+            - If "n" → successful = false with feedback "Baruch vetoed this proposal; try a
+              different flavor or tighter wording."
 
             Deployment to verify:
             $deployment

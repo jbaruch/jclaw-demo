@@ -4,6 +4,7 @@ import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
 import dev.tamboui.toolkit.Toolkit.column
 import dev.tamboui.toolkit.Toolkit.panel
+import dev.tamboui.toolkit.Toolkit.richText
 import dev.tamboui.toolkit.Toolkit.row
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
@@ -58,8 +59,12 @@ class JclawTui(
     }
 
     override fun render(): Element {
-        val chatChildren = chatLines.takeLast(MAX_LINES).map { text(it) as Element }.toTypedArray()
-        val traceChildren = traceLines.takeLast(MAX_LINES).map { text(it).dim() as Element }.toTypedArray()
+        // richText(...).wrapWord() = soft word-wrap so long chat/trace lines
+        // flow across multiple visible rows instead of being clipped.
+        val chatChildren = chatLines.takeLast(MAX_LINES)
+            .map { richText(it).wrapWord() as Element }.toTypedArray()
+        val traceChildren = traceLines.takeLast(MAX_LINES)
+            .map { richText(it).wrapWord().dim() as Element }.toTypedArray()
 
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
             ?: text(" ").dim()
