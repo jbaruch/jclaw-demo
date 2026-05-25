@@ -1,0 +1,46 @@
+# Gradle
+.gradle/
+build/
+!gradle-wrapper.jar
+!gradle/wrapper/
+
+# IntelliJ / IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (for mock MCP servers if implemented in Node)
+node_modules/
+package-lock.json
+
+# Python (if any helper scripts)
+__pycache__/
+*.pyc
+.venv/
+
+# Local env files
+.env
+.env.local
+
+# Logs
+*.log
+logs/
+
+# Tessl tile cache
+.tessl/tiles/
+
+# SQLite WAL/SHM (the seeded memory.sqlite is committed; transient files aren't)
+mocks/memory.sqlite-wal
+mocks/memory.sqlite-shm
+
+# Compiled output that isn't committed
+**/target/
