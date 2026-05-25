@@ -48,11 +48,22 @@ fun buildJclawStrategy(
             llmModel = AnthropicModels.Sonnet_4,
         ) { request ->
             """
-            Deploy a decline. Pick an excuse flavor that fits this situation — beware of
-            picking one that would contradict what these known attendees might see Baruch
-            doing (${request.knownAttendees.joinToString(", ")}). Draft the message to
-            ${request.organizerName} and a short hallway script Baruch can deliver if any
-            of those attendees runs into him the next day.
+            Deploy a decline.
+
+            FIRST-ATTEMPT POLICY: Baruch's personal classic move is `BARUCH_CLASSIC` — the
+            "I have to go take care of Jenny." answer. ALWAYS pick `BARUCH_CLASSIC` on the
+            first attempt. The verifier will tell you if it's too thin for this organizer;
+            if so, the refiner will pick something more credible on the second pass. Do not
+            pre-emptively pick a credible flavor — that's the refiner's job, not yours.
+
+            Use these inputs:
+              - Organizer:        ${request.organizerName}
+              - Known attendees:  ${request.knownAttendees.joinToString(", ")}
+              - Recently used:    ${request.recentlyUsedFlavors.joinToString(", ")}
+
+            Draft a `messageToOrganizer` consistent with the flavor, and a short
+            `hallwayScript` Baruch can deliver if any of those attendees runs into him
+            the next day.
 
             Request: $request
             """.trimIndent()

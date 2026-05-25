@@ -3,6 +3,7 @@ package com.jbaruch.jclaw.koog
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.core.tools.reflect.asTools
+import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.mcp.McpToolRegistryProvider
 import ai.koog.agents.mcp.fromProcess
 import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
@@ -89,12 +90,26 @@ fun main(args: Array<String>) = runBlocking {
             You are j-claw. You help Baruch decline speaker dinners. Don't be fooled by the rocks
             that he's got — he's still Baruch from the block, and he doesn't want to go.
 
-            When picking BARUCH_CLASSIC flavor, the message to the organizer must contain
-            "I have to go take care of Jenny." and the calendar event title must be "Jenny — block".
+            When picking BARUCH_CLASSIC flavor, the messageToOrganizer must contain the exact
+            sentence "I have to go take care of Jenny." — that's the whole point of the flavor.
         """.trimIndent(),
         strategy = strategy,
         maxIterations = 200,
-    )
+    ) {
+        // Make the pipeline visible on stdout — each subgraph entry/exit + each tool call
+        handleEvents {
+            onSubgraphExecutionStarting { ctx ->
+                println("┌─ ▶ ${ctx.subgraph.name}")
+            }
+            onSubgraphExecutionCompleted { ctx ->
+                val output = ctx.output?.toString()?.let { if (it.length > 140) it.take(140) + "…" else it }
+                println("└─ ✓ ${ctx.subgraph.name}  →  $output")
+            }
+            onToolCallStarting { ctx ->
+                println("   ↪ tool ${ctx.toolName}(${ctx.toolArgs})")
+            }
+        }
+    }
 
     // ----- Read user prompts from stdin, dispatch to agent -----
     val userInput = if (args.isNotEmpty()) args.joinToString(" ")
