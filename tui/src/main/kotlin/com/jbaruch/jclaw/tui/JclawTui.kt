@@ -97,7 +97,7 @@ class JclawTui(
             "Polishing the hallway script",
             "Pondering plausibility tiers",
             "Reticulating excuse splines",
-            "Asking around about Filipe",
+            "Asking around about Roberto",
             "Decoding 'On the 6' (3rd verse)",
             "Cross-referencing the block",
             "Phoning a friend (named Jenny)",

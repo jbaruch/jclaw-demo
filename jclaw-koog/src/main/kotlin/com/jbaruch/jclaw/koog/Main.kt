@@ -111,6 +111,9 @@ fun main(args: Array<String>) {
                     onToolCallStarting { ctx ->
                         tui.trace("   ↪ ${ctx.toolName}(${ctx.toolArgs})")
                     }
+                    onToolCallCompleted { ctx ->
+                        formatToolForChat(ctx.toolName, ctx.toolArgs.toString(), ctx.toolResult.toString())?.let { tui.chat(it) }
+                    }
                     onLLMCallStarting { _ -> tui.startBusy() }
                     onLLMCallCompleted { _ -> tui.stopBusy() }
                 }
@@ -136,4 +139,25 @@ fun main(args: Array<String>) {
 
     // Blocks the main thread until the user quits the TUI (Ctrl+C / q).
     tui.run()
+}
+
+/**
+ * Formats a completed tool call as a single-line CHAT message so the audience sees what
+ * j-claw learned. Returns null for tools that already produce their own CHAT output
+ * (askBaruch / pingBaruchPrivate / awaitReaction — those go through UserTools.outbound).
+ */
+private fun formatToolForChat(toolName: String, args: String, result: String): String? {
+    val resultShort = if (result.length > 220) result.take(220) + "…" else result
+    return when (toolName) {
+        // Already chat-visible via UserTools.outbound — skip.
+        "askBaruch", "pingBaruchPrivate", "awaitReaction" -> null
+
+        "searchPriorExcuses"     -> "🔍 j-claw checked prior declines → $resultShort"
+        "getCalendar"            -> "📅 j-claw read the calendar → $resultShort"
+        "getEventAttendees"      -> "👥 j-claw checked who's at the dinner → $resultShort"
+        "getContactSensitivity"  -> "📇 j-claw looked up the organizer's sensitivity → $resultShort"
+        "sendDecline"            -> "✉️  j-claw sent the decline → $resultShort"
+
+        else -> "🔧 j-claw called $toolName → $resultShort"
+    }
 }

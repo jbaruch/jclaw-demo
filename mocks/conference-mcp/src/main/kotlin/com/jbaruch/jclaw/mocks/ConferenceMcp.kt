@@ -47,8 +47,8 @@ class ConferenceTools : ToolSet {
     ): List<String> = cannedAttendees[eventId] ?: emptyList()
 
     private val cannedCalendar: List<CalendarEvent> = listOf(
-        CalendarEvent("jnation-2026-dinner",   "JNation Speaker Dinner",   "2026-05-26T20:00:00+01:00", "Filipe Correia"),
-        CalendarEvent("jnation-2025-dinner",   "JNation Speaker Dinner",   "2025-06-19T20:00:00+01:00", "Filipe Correia",  declined = true, declineReason = "EMERGENCY_MEETING"),
+        CalendarEvent("jnation-2026-dinner",   "JNation Speaker Dinner",   "2026-05-26T20:00:00+01:00", "Roberto Cortez"),
+        CalendarEvent("jnation-2025-dinner",   "JNation Speaker Dinner",   "2025-06-19T20:00:00+01:00", "Roberto Cortez",  declined = true, declineReason = "EMERGENCY_MEETING"),
         CalendarEvent("devoxx-2025-dinner",    "Devoxx BE Speaker Dinner", "2025-10-09T20:00:00+02:00", "Stephan Janssen", declined = true, declineReason = "FAMILY_OBLIGATION"),
         CalendarEvent("spring-io-2026-dinner", "Spring I/O Speaker Dinner","2026-04-15T20:00:00+02:00", "Sergi Almar",     declined = true, declineReason = "HOTEL_ISSUE"),
     )

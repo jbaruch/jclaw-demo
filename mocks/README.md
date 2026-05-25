@@ -15,7 +15,7 @@ See `SPEC.md` §2.1 for the exact canned payload.
 
 stdio MCP server. Exposes:
 
-- `getOrganizerSensitivity(name) → Sensitivity` — `EASYGOING` for `Filipe Correia`, `NORMAL` otherwise
+- `getOrganizerSensitivity(name) → Sensitivity` — `EASYGOING` for `Roberto Cortez`, `NORMAL` otherwise
 - `sendDecline(eventId, message) → DeclineReceipt` — logs sends, returns `{ delivered: true, deliveredAt: ISO }`
 
 See `SPEC.md` §2.2.

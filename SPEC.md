@@ -13,7 +13,7 @@ Both presenters build the **same agent** — a personal AI assistant called **j-
 
 Same scenario, same domain model, same mock backend, same audience-visible interface — two frameworks. **The point of the talk: agentic Java is real, and both Koog and LangChain4j Agentic produce essentially the same app.** The Java developer wins regardless of which side they pick.
 
-Comedy hook: **j-claw is the agent Baruch actually needs.** Built for an audience of conference speakers, declining the JNation speaker dinner ON STAGE during the JNation speaker dinner timeslot. The organizer (Filipe Correia) is also in the audience. The j-claw character is J.Lo–adjacent; specific touchpoints in §10.
+Comedy hook: **j-claw is the agent Baruch actually needs.** Built for an audience of conference speakers, declining the JNation speaker dinner ON STAGE during the JNation speaker dinner timeslot. The organizer (Roberto Cortez) is also in the audience. The j-claw character is J.Lo–adjacent; specific touchpoints in §10.
 
 ---
 
@@ -34,8 +34,8 @@ Canned `getCalendar()` payload (same for both apps — read once, served fresh e
 
 ```json
 [
-  { "id": "jnation-2026-dinner", "title": "JNation Speaker Dinner", "start": "2026-05-26T20:00:00+01:00", "organizer": "Filipe Correia", "declined": false },
-  { "id": "jnation-2025-dinner", "title": "JNation Speaker Dinner",  "start": "2025-06-19T20:00:00+01:00", "organizer": "Filipe Correia", "declined": true, "declineReason": "EMERGENCY_MEETING" },
+  { "id": "jnation-2026-dinner", "title": "JNation Speaker Dinner", "start": "2026-05-26T20:00:00+01:00", "organizer": "Roberto Cortez", "declined": false },
+  { "id": "jnation-2025-dinner", "title": "JNation Speaker Dinner",  "start": "2025-06-19T20:00:00+01:00", "organizer": "Roberto Cortez", "declined": true, "declineReason": "EMERGENCY_MEETING" },
   { "id": "devoxx-2025-dinner", "title": "Devoxx BE Speaker Dinner", "start": "2025-10-09T20:00:00+02:00", "organizer": "Stephan Janssen", "declined": true, "declineReason": "FAMILY_OBLIGATION" },
   { "id": "spring-io-2026-dinner", "title": "Spring I/O Speaker Dinner", "start": "2026-04-15T20:00:00+02:00", "organizer": "Sergi Almar", "declined": true, "declineReason": "HOTEL_ISSUE" }
 ]
@@ -52,7 +52,7 @@ getOrganizerSensitivity(name: String) → Sensitivity     // EASYGOING | NORMAL 
 sendDecline(eventId: String, message: String) → DeclineReceipt   // { delivered: true, deliveredAt: ISO }
 ```
 
-Canned sensitivity map: `Filipe Correia → EASYGOING`. Anyone else → `NORMAL`. (Reserved: a `TOUCHY` entry for live audience-Q&A bit if we have time.)
+Canned sensitivity map: `Roberto Cortez → EASYGOING`. Anyone else → `NORMAL`. (Reserved: a `TOUCHY` entry for live audience-Q&A bit if we have time.)
 
 ### 2.3 Implementation note
 
@@ -156,7 +156,7 @@ Both sides install chat memory backed by **the same shared SQLite file** at `moc
 - LC4J: equivalent chat-memory feature pointing at the same sqlite file
 
 The pre-seeded memory contains plain-language entries like:
-- `"Declined JNation 2025 — told Filipe it was an emergency meeting"`
+- `"Declined JNation 2025 — told Roberto it was an emergency meeting"`
 - `"Declined Devoxx 2025 — told Stephan it was a family obligation"`
 - `"Declined Spring I/O 2026 — told Sergi the hotel had a problem"`
 

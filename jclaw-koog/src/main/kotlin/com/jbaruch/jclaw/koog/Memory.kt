@@ -15,7 +15,7 @@ object SeedMemory {
     val priorDeclines: List<PriorDecline> = listOf(
         PriorDecline(
             eventName = "JNation 2025 Speaker Dinner",
-            organizerName = "Filipe Correia",
+            organizerName = "Roberto Cortez",
             flavorUsed = ExcuseFlavor.EMERGENCY_MEETING,
             date = "2025-06-19",
         ),

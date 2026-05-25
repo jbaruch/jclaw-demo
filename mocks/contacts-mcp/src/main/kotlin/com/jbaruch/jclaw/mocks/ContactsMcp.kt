@@ -34,7 +34,7 @@ class ContactsTools : ToolSet {
     @Tool
     @LLMDescription("Returns Baruch's note on how sensitive the named contact is to last-minute excuses — EASYGOING / NORMAL / TOUCHY")
     fun getContactSensitivity(
-        @LLMDescription("Full name of the contact, e.g. \"Filipe Correia\"")
+        @LLMDescription("Full name of the contact, e.g. \"Roberto Cortez\"")
         name: String,
     ): Sensitivity {
         val out = sensitivities[name] ?: Sensitivity.NORMAL
@@ -57,7 +57,7 @@ class ContactsTools : ToolSet {
     }
 
     private val sensitivities: Map<String, Sensitivity> = mapOf(
-        "Filipe Correia"  to Sensitivity.EASYGOING,
+        "Roberto Cortez"  to Sensitivity.EASYGOING,
         "Stephan Janssen" to Sensitivity.NORMAL,
         "Sergi Almar"     to Sensitivity.NORMAL,
     )
