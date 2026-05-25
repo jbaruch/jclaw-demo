@@ -4,7 +4,7 @@ import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
 import dev.tamboui.toolkit.Toolkit.column
 import dev.tamboui.toolkit.Toolkit.panel
-import dev.tamboui.toolkit.Toolkit.richText
+import dev.tamboui.toolkit.Toolkit.richTextArea
 import dev.tamboui.toolkit.Toolkit.row
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
@@ -59,12 +59,16 @@ class JclawTui(
     }
 
     override fun render(): Element {
-        // richText(...).wrapWord() = soft word-wrap so long chat/trace lines
-        // flow across multiple visible rows instead of being clipped.
+        // richTextArea(...).wrapWord() — RichTextElement doesn't reflow height
+        // in column layouts; only RichTextArea computes wrapped height from
+        // available width, which is what makes long chat/trace lines actually
+        // flow across multiple rows instead of getting clipped.
+        // Trace uses bright cyan instead of .dim() because gray-on-white
+        // disappears on conference projectors.
         val chatChildren = chatLines.takeLast(MAX_LINES)
-            .map { richText(it).wrapWord() as Element }.toTypedArray()
+            .map { richTextArea(it).wrapWord() as Element }.toTypedArray()
         val traceChildren = traceLines.takeLast(MAX_LINES)
-            .map { richText(it).wrapWord().dim() as Element }.toTypedArray()
+            .map { richTextArea(it).wrapWord().fg(Color.CYAN) as Element }.toTypedArray()
 
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
             ?: text(" ").dim()
