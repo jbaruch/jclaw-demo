@@ -12,13 +12,14 @@ import kotlinx.serialization.Serializable
 import java.time.Instant
 
 /**
- * Mock organizer MCP server — Koog-backed, stdio transport.
+ * Mock contacts MCP server — Koog-backed, stdio transport.
+ *
+ * Models Baruch's personal-CRM notes: who is touchy, who is easygoing, and how to
+ * reach them. Used by j-claw to tune both the excuse flavor and the message tone.
  *
  * Tools:
- *   getOrganizerSensitivity(name) -> Sensitivity
+ *   getContactSensitivity(name) -> Sensitivity
  *   sendDecline(eventId, message) -> DeclineReceipt
- *
- * Canned per SPEC.md §2.2.
  */
 
 @Serializable
@@ -27,45 +28,46 @@ enum class Sensitivity { EASYGOING, NORMAL, TOUCHY }
 @Serializable
 data class DeclineReceipt(val delivered: Boolean, val deliveredAt: String)
 
-@LLMDescription("Tools for sending decline messages to event organizers")
-class OrganizerTools : ToolSet {
+@LLMDescription("Personal-CRM notes about Baruch's contacts: sensitivity profiles and the ability to send messages")
+class ContactsTools : ToolSet {
 
     @Tool
-    @LLMDescription("Returns how sensitive the named organizer is to last-minute excuses")
-    fun getOrganizerSensitivity(
-        @LLMDescription("Full name of the organizer, e.g. \"Filipe Correia\"")
+    @LLMDescription("Returns Baruch's note on how sensitive the named contact is to last-minute excuses — EASYGOING / NORMAL / TOUCHY")
+    fun getContactSensitivity(
+        @LLMDescription("Full name of the contact, e.g. \"Filipe Correia\"")
         name: String,
     ): Sensitivity {
         val out = sensitivities[name] ?: Sensitivity.NORMAL
-        System.err.println("[organizer-mcp] getOrganizerSensitivity(\"$name\") -> $out")
+        System.err.println("[contacts-mcp] getContactSensitivity(\"$name\") -> $out")
         return out
     }
 
     @Tool
     @LLMDescription("Sends a decline message to the organizer of the named event")
     fun sendDecline(
-        @LLMDescription("Calendar event id (from calendar-mcp's getCalendar)")
+        @LLMDescription("Calendar event id (from conference-mcp's getCalendar)")
         eventId: String,
         @LLMDescription("The decline message text the organizer will see")
         message: String,
     ): DeclineReceipt {
         val now = Instant.now().toString()
         val preview = if (message.length > 80) message.take(80) + "…" else message
-        System.err.println("[organizer-mcp] sendDecline(eventId=\"$eventId\") delivered at $now — \"$preview\"")
+        System.err.println("[contacts-mcp] sendDecline(eventId=\"$eventId\") delivered at $now — \"$preview\"")
         return DeclineReceipt(delivered = true, deliveredAt = now)
     }
 
     private val sensitivities: Map<String, Sensitivity> = mapOf(
-        "Filipe Correia" to Sensitivity.EASYGOING,
+        "Filipe Correia"  to Sensitivity.EASYGOING,
+        "Stephan Janssen" to Sensitivity.NORMAL,
+        "Sergi Almar"     to Sensitivity.NORMAL,
     )
 }
 
 fun main() {
     runBlocking {
-        val registry = ToolRegistry { tools(OrganizerTools().asTools()) }
-        System.err.println("[organizer-mcp] starting stdio MCP server with ${OrganizerTools::class.simpleName}")
+        val registry = ToolRegistry { tools(ContactsTools().asTools()) }
+        System.err.println("[contacts-mcp] starting stdio MCP server with ${ContactsTools::class.simpleName}")
         startStdioMcpServer(registry)
-        // startStdioMcpServer returns after setup; keep JVM alive so the server keeps processing stdin.
         awaitCancellation()
     }
 }

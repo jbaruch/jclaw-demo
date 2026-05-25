@@ -30,11 +30,11 @@ fun main(args: Array<String>) = runBlocking {
         ?: error("Set ANTHROPIC_API_KEY")
 
     // ----- MCP servers (launched as subprocesses; tools come back via stdio) -----
-    val calendarRegistry = McpToolRegistryProvider.fromProcess(
-        ProcessBuilder("./mocks/calendar-mcp/build/install/calendar-mcp/bin/calendar-mcp").start()
+    val conferenceRegistry = McpToolRegistryProvider.fromProcess(
+        ProcessBuilder("./mocks/conference-mcp/build/install/conference-mcp/bin/conference-mcp").start()
     )
-    val organizerRegistry = McpToolRegistryProvider.fromProcess(
-        ProcessBuilder("./mocks/organizer-mcp/build/install/organizer-mcp/bin/organizer-mcp").start()
+    val contactsRegistry = McpToolRegistryProvider.fromProcess(
+        ProcessBuilder("./mocks/contacts-mcp/build/install/contacts-mcp/bin/contacts-mcp").start()
     )
 
     // ----- Local tools -----
@@ -59,7 +59,7 @@ fun main(args: Array<String>) = runBlocking {
         tools(readTools.asTools())
     }
 
-    val toolRegistry = localRegistry + calendarRegistry + organizerRegistry
+    val toolRegistry = localRegistry + conferenceRegistry + contactsRegistry
 
     // ----- Executor -----
     val executor = MultiLLMPromptExecutor(
@@ -67,16 +67,17 @@ fun main(args: Array<String>) = runBlocking {
         AnthropicLLMClient(anthropicKey),
     )
 
-    // ----- The strategy ----- each MCP tool lives in exactly one slice (no duplicates across read/write).
-    val calRead  = calendarRegistry.tools.filter  { it.descriptor.name == "getCalendar" }
-    val calWrite = calendarRegistry.tools.filter  { it.descriptor.name == "createCalendarEvent" }
-    val orgRead  = organizerRegistry.tools.filter { it.descriptor.name == "getOrganizerSensitivity" }
-    val orgWrite = organizerRegistry.tools.filter { it.descriptor.name == "sendDecline" }
+    // ----- The strategy -----
+    // conference-mcp is read-only (getCalendar + getEventAttendees).
+    // contacts-mcp splits read (getContactSensitivity) vs write (sendDecline).
+    val confRead     = conferenceRegistry.tools
+    val contactsRead = contactsRegistry.tools.filter { it.descriptor.name == "getContactSensitivity" }
+    val contactsWrt  = contactsRegistry.tools.filter { it.descriptor.name == "sendDecline" }
 
     val strategy = buildJclawStrategy(
-        userTools = userTools.asTools(),
-        readTools = readTools.asTools() + calRead + orgRead,
-        writeTools = calWrite + orgWrite,
+        userTools  = userTools.asTools(),
+        readTools  = readTools.asTools() + confRead + contactsRead,
+        writeTools = contactsWrt,
     )
 
     // ----- Agent -----

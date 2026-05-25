@@ -28,8 +28,8 @@ fi
 
 # Build everything (mocks installDist + jclaw-koog installDist)
 ./gradlew --console=plain --quiet \
-  :mocks:calendar-mcp:installDist \
-  :mocks:organizer-mcp:installDist \
+  :mocks:conference-mcp:installDist \
+  :mocks:contacts-mcp:installDist \
   :jclaw-koog:installDist
 
 # Run the agent binary directly — unbuffered stdout

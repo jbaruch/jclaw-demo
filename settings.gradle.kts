@@ -21,8 +21,8 @@ dependencyResolutionManagement {
 
 rootProject.name = "jclaw-demo"
 
-include(":mocks:calendar-mcp")
-include(":mocks:organizer-mcp")
+include(":mocks:conference-mcp")
+include(":mocks:contacts-mcp")
 include(":jclaw-koog")
 // Coming next:
 // include(":tui")              // TamboUI TUI shell — building console-first, swap later

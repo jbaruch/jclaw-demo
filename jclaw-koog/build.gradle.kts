@@ -27,7 +27,7 @@ tasks.named<JavaExec>("run") {
     workingDir = rootProject.projectDir
     standardInput = System.`in`   // forward terminal stdin so awaitReaction sees y/n keystrokes
     dependsOn(
-        ":mocks:calendar-mcp:installDist",
-        ":mocks:organizer-mcp:installDist",
+        ":mocks:conference-mcp:installDist",
+        ":mocks:contacts-mcp:installDist",
     )
 }

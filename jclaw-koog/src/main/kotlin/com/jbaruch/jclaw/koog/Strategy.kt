@@ -34,8 +34,9 @@ fun buildJclawStrategy(
             llmModel = OpenAIModels.Chat.GPT4o,
         ) { input ->
             """
-            Identify what Baruch wants to decline. Pull his calendar, check his prior excuses
-            for this organizer or venue, and produce a DeclineRequest.
+            Identify what Baruch wants to decline. Call getCalendar to find the event, then
+            getEventAttendees(eventId) to learn who else is attending, and searchPriorExcuses
+            to fetch his recent declines. Produce a DeclineRequest with all four fields filled.
 
             User said: $input
             """.trimIndent()
@@ -47,9 +48,11 @@ fun buildJclawStrategy(
             llmModel = AnthropicModels.Sonnet_4,
         ) { request ->
             """
-            Deploy a decline. Pick an excuse flavor — but NEVER reuse one in
-            ${request.recentlyUsedFlavors}. Stage a backing calendar event. Draft the
-            message to ${request.organizerName}.
+            Deploy a decline. Pick an excuse flavor that fits this situation — beware of
+            picking one that would contradict what these known attendees might see Baruch
+            doing (${request.knownAttendees.joinToString(", ")}). Draft the message to
+            ${request.organizerName} and a short hallway script Baruch can deliver if any
+            of those attendees runs into him the next day.
 
             Request: $request
             """.trimIndent()
@@ -60,10 +63,33 @@ fun buildJclawStrategy(
             llmModel = OpenAIModels.Chat.O3,
         ) { deployment ->
             """
-            Pressure-test this decline. Would it survive contact with the organizer the next day?
-            The PlausibilityTier.JENNY_FROM_THE_BLOCK tier means the excuse failed.
+            Pressure-test this decline. You decide successful = true or false; if false, provide
+            actionable feedback the refiner can use to pick a better flavor.
 
-            Deployment: $deployment
+            REJECT (successful = false) when ANY of these is true:
+
+            1. The flavor was recently used. Call searchPriorExcuses to fetch Baruch's recent
+               declines and check whether deployment.flavor appears in that list. If yes, fail
+               with feedback naming the duplicate flavor and the organizer it was last used with.
+
+            2. The flavor is BARUCH_CLASSIC. This is the "I have to go take care of Jenny" answer
+               and is tier JENNY_FROM_THE_BLOCK — too thin for any real organizer. Fail with
+               feedback "BARUCH_CLASSIC is tier JENNY_FROM_THE_BLOCK; pick a CREDIBLE flavor."
+
+            3. The message to the organizer is shorter than two sentences, or contains TODO,
+               placeholder text, or square-bracketed unfilled fields.
+
+            4. The hallway script is empty or trivially copies the message to the organizer.
+
+            5. The excuse contradicts the attendee list — for example, claiming Baruch is
+               out of town when a known attendee is someone he would have run into earlier
+               that day, or claiming a family emergency where an attendee would expect Baruch
+               at the venue regardless.
+
+            Otherwise, successful = true. Pass the deployment through unchanged.
+
+            Deployment to verify:
+            $deployment
             """.trimIndent()
         }
 
