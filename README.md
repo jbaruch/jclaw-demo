@@ -18,16 +18,18 @@ jclaw-demo/
 └── jclaw-lc4j/          ← Viktor's LangChain4j Agentic implementation (4 progressive rounds)
 ```
 
-## The four rounds (each a runnable Gradle module)
+## The four rounds (git branches, not modules)
 
-| Round | What it shows |
-|---|---|
-| `round1-chatbot` | Basic `AIAgent(...)` one-liner — chatbot, no tools, no memory |
-| `round2-tools-mcp` | Sliced `ToolSet`s + mock MCP servers — agent picks an overused excuse and fails verification (no memory yet) |
-| `round3-memory` | + ChatMemory backed by `mocks/memory.sqlite` — agent sees prior declines, avoids reusing flavors |
-| `round4-pipeline` | + domain-modeled subtask pipeline — `identifyDecline` → `deployDecline` → `verifyDecline` → `refineDecline` with typed I/O and sliced tools per phase |
+`main` holds the full Round 4 state. Earlier rounds are **branches that strip features backward** — so each branch is self-contained and runnable, and on stage we just `git checkout` between them.
 
-Round 4 is the headline. The progressive structure exists so the audience can see what each capability adds.
+| Branch | What it shows | Built by |
+|---|---|---|
+| `round1-chatbot` | Basic `AIAgent(...)` one-liner — chatbot, no tools, no memory | stripping tools, MCP, memory, pipeline from main |
+| `round2-tools-mcp` | + sliced `ToolSet`s + mock MCP servers, no memory | stripping memory + pipeline from main |
+| `round3-memory` | + `ChatMemory` backed by `mocks/memory.sqlite` | stripping pipeline from main |
+| `main` (Round 4) | + domain-modeled subtask pipeline (`identifyDecline` → `deployDecline` → `verifyDecline` → `refineDecline`) with typed I/O and sliced tools per phase | this is the headline state |
+
+Round 4 is the headline. The progressive structure exists so the audience can see what each capability adds; the branch-strip approach exists so we don't have to keep four module variants compilable in parallel.
 
 ## Run
 
@@ -38,10 +40,16 @@ export OPENAI_API_KEY=...
 export ANTHROPIC_API_KEY=...
 
 # Koog side
-./gradlew :jclaw-koog:round4-pipeline:run
+./gradlew :jclaw-koog:run
 
 # LC4J side
-./gradlew :jclaw-lc4j:round4-pipeline:run
+./gradlew :jclaw-lc4j:run
+
+# Switch rounds (during talk dry-runs)
+git checkout round1-chatbot
+git checkout round2-tools-mcp
+git checkout round3-memory
+git checkout main             # = round 4 = headline
 ```
 
 Both apps spawn the mock MCP servers locally — no network setup, no real Telegram, no real calendar. The TUI is a TamboUI terminal interface; type your prompt, watch the agent work.
