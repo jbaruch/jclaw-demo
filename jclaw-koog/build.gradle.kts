@@ -5,6 +5,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":tui"))
     implementation("ai.koog:koog-agents:1.0.0")
     // The MCP client + agents-ext (subgraphs) and the MCP server module are only published as
     // 1.0.0-beta in Koog's 1.0 release window.

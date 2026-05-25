@@ -23,9 +23,7 @@ rootProject.name = "jclaw-demo"
 
 include(":mocks:conference-mcp")
 include(":mocks:contacts-mcp")
+include(":tui")
 include(":jclaw-koog")
-// Coming next:
-// include(":tui")              // TamboUI TUI shell — building console-first, swap later
-// include(":mocks:seed-memory") // sqlite seed program — using in-process seed for now
 // Viktor's side — uncomment when his code lands
 // include(":jclaw-lc4j")
