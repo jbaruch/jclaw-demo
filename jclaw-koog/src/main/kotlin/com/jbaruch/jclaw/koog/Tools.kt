@@ -6,16 +6,16 @@ import ai.koog.agents.core.tools.reflect.ToolSet
 import kotlinx.coroutines.channels.Channel
 
 /**
- * Three ToolSets sliced by access pattern per SPEC.md §5.
+ * UserTools — local communication-with-Baruch tools.
  *
- * Constructor parameters are DI — the LLM never sees them. Tool annotations + @LLMDescription
- * are what the LLM consumes.
+ * Calendar / attendee / organizer / sendDecline come from the two mock MCP
+ * servers (conference-mcp + contacts-mcp). "Memory" is NOT a tool here — Round
+ * 3 installs Koog's ChatMemory feature, which preloads prior-decline turns into
+ * the LLM's context automatically. No searchPriorExcuses call needed.
+ *
+ * Constructor parameters are DI — the LLM never sees them. Tool annotations +
+ * @LLMDescription are what the LLM consumes.
  */
-
-// -----------------------------------------------------------------------------
-// UserTools — communication with Baruch only
-// -----------------------------------------------------------------------------
-
 @LLMDescription("Tools for communicating directly with Baruch (the user)")
 class UserTools(
     private val outbound: (String) -> Unit,       // print to chat pane
@@ -29,7 +29,6 @@ class UserTools(
         question: String,
     ): String {
         outbound("j-claw → Baruch: $question")
-        // For the demo: in the TUI this would block on the prompt pane; console build prints + waits
         outbound("(awaiting reply)")
         return reactions.receive()
     }
@@ -54,44 +53,3 @@ class UserTools(
         return reactions.receive()
     }
 }
-
-// -----------------------------------------------------------------------------
-// ReadTools — read-only access to memory and (optionally) MCP-served calendar/organizer
-// -----------------------------------------------------------------------------
-
-@LLMDescription("Read-only tools — calendar look-up, organizer info, and prior-excuse memory")
-class ReadTools(
-    private val priorDeclines: List<PriorDecline>,
-) : ToolSet {
-
-    @Tool
-    @LLMDescription("Returns all decline-related history j-claw has stored about Baruch — what was said to which organizer at which past event")
-    fun searchPriorExcuses(): List<PriorDecline> {
-        return priorDeclines
-    }
-}
-
-data class PriorDecline(
-    val eventName: String,
-    val organizerName: String,
-    val flavorUsed: ExcuseFlavor,
-    val date: String,
-) {
-    // Manual serialization-friendly toString — LLM reads this through getter calls
-    override fun toString(): String = "PriorDecline(event=\"$eventName\", organizer=\"$organizerName\", flavor=$flavorUsed, date=$date)"
-}
-
-// Calendar and organizer tools come from MCP servers (calendar-mcp + organizer-mcp).
-// j-claw-koog imports them via `McpToolRegistryProvider.fromProcess(...)` in Main.kt.
-// They're NOT defined here as local ToolSets — that's the whole point of MCP.
-
-// -----------------------------------------------------------------------------
-// WriteTools — mutate state, send messages (currently a no-op shell for testing)
-// -----------------------------------------------------------------------------
-
-// WriteTools' real implementations live in the calendar-mcp and organizer-mcp servers
-// (createCalendarEvent, sendDecline). No local WriteTools needed — same MCP setup as ReadTools'
-// calendar / organizer surfaces. Both classes of access go through MCP.
-//
-// If you need write-side LOCAL tools (e.g., logging to a file, ringing a bell), declare a
-// `class LocalWriteTools(...) : ToolSet { ... }` here.

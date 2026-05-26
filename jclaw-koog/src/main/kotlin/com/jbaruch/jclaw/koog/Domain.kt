@@ -51,3 +51,33 @@ data class DeclineDeployment(
     @property:LLMDescription("Hallway script — what to say if any of the attendees asks the next day")
     val hallwayScript: String,
 )
+
+/** Intent classification from the routing subgraph at the head of the strategy graph. */
+@Serializable
+enum class IntentClassification { DECLINE_REQUEST, CHAT }
+
+/**
+ * The classify subgraph's output — carries the routing decision PLUS the original
+ * user message so downstream subgraphs (identifyDecline / chatReply) can consume it.
+ */
+@LLMDescription("Routing decision for the next subgraph plus the original user message")
+@Serializable
+data class ClassifiedInput(
+    @property:LLMDescription("Pick DECLINE_REQUEST if the user is asking to decline / cancel / RSVP no to an event. Otherwise CHAT.")
+    val intent: IntentClassification,
+    @property:LLMDescription("The user's original message, verbatim, passed through unchanged")
+    val userMessage: String,
+)
+
+/**
+ * The strategy's terminal output — either a sent decline or a free-form chat reply.
+ * The routing subgraph picks the branch; only one of these is ever produced per run.
+ */
+@Serializable
+sealed interface JclawResult {
+    @Serializable
+    data class DeclineSent(val deployment: DeclineDeployment) : JclawResult
+
+    @Serializable
+    data class ChatReply(val text: String) : JclawResult
+}

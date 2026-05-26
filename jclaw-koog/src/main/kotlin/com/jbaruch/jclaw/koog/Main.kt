@@ -1,5 +1,6 @@
 package com.jbaruch.jclaw.koog
 
+import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.core.tools.reflect.asTools
@@ -21,8 +22,10 @@ import kotlinx.coroutines.runBlocking
  *
  * Layout:
  *   - Two mock MCP servers (conference-mcp, contacts-mcp) launched as subprocesses
- *   - Three sliced ToolSets (UserTools = local, ReadTools = local + MCP, WriteTools = MCP)
- *   - In-process pre-seeded "memory" via SeedMemory.priorDeclines
+ *   - Two MCP-backed tool surfaces (conference-mcp = read, contacts-mcp = read + write)
+ *     plus a local UserTools for asking Baruch and awaiting his y/n reactions
+ *   - Real Koog ChatMemory pre-seeded with prior-decline conversation turns
+ *     (via SeedMemoryProvider — no searchPriorExcuses tool needed)
  *   - Four-phase strategy from Strategy.kt
  *   - TamboUI TUI: CHAT / TRACE / STATUS / PROMPT
  *
@@ -60,11 +63,9 @@ fun main(args: Array<String>) {
                 outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
                 reactions = submissions,
             )
-            val readTools = ReadTools(priorDeclines = SeedMemory.priorDeclines)
 
             val localRegistry = ToolRegistry {
                 tools(userTools.asTools())
-                tools(readTools.asTools())
             }
             val toolRegistry = localRegistry + conferenceRegistry + contactsRegistry
 
@@ -80,7 +81,7 @@ fun main(args: Array<String>) {
 
             val strategy = buildJclawStrategy(
                 userTools  = userTools.asTools(),
-                readTools  = readTools.asTools() + confRead + contactsRead,
+                readTools  = confRead + contactsRead,
                 writeTools = contactsWrt,
             )
 
@@ -100,6 +101,12 @@ fun main(args: Array<String>) {
                 strategy = strategy,
                 maxIterations = 200,
             ) {
+                install(ChatMemory) {
+                    chatHistoryProvider = SeedMemoryProvider(
+                        onLoadTrace = { tui.trace(it, TraceKind.TOOL_CALL) },
+                        onLoadChat  = { tui.chat(it, ChatKind.TOOL_RESULT) },
+                    )
+                }
                 handleEvents {
                     onSubgraphExecutionStarting { ctx ->
                         tui.trace("┌─ ▶ ${ctx.subgraph.name}", TraceKind.SUBGRAPH_START)
@@ -125,23 +132,35 @@ fun main(args: Array<String>) {
 
             // Greet, then wait for the initial user message.
             tui.chat(
-                "j-claw: Good evening, sir. The hour grows civil and your calendar grows uncivil. " +
-                    "From which obligation are we to engineer your gracious extraction tonight — " +
-                    "with grace, with conviction, and with the absolute minimum of perjury?",
-                ChatKind.JCLAW,
+                "j-claw: At your service, sir. Shall we engineer a gracious extraction " +
+                    "from some obligation — or is there other business?",
+                ChatKind.OK,
             )
-            val initial = if (args.isNotEmpty()) args.joinToString(" ") else submissions.receive()
-            if (args.isNotEmpty()) {
-                // Auto-fire path also surfaces the implicit input in CHAT.
-                tui.chat("you: $initial", ChatKind.YOU)
+            // Loop: every PROMPT submission is a fresh agent.run(). The classify subgraph
+            // routes each prompt to either the decline pipeline or a chat reply, so the
+            // agent stays alive for follow-ups instead of dying after a single decline.
+            var next: String? = if (args.isNotEmpty()) args.joinToString(" ") else null
+            if (next != null) {
+                tui.chat("you: $next", ChatKind.YOU)
             }
 
-            try {
-                val result = agent.run(initial)
-                tui.chat("j-claw: ✓ done — flavor ${result.flavor}", ChatKind.OK)
-                tui.chat("j-claw: message → ${result.messageToOrganizer}", ChatKind.JCLAW)
-            } catch (t: Throwable) {
-                tui.chat("✘ ${t.message ?: t.javaClass.simpleName}", ChatKind.ERR)
+            while (true) {
+                val prompt = next ?: submissions.receive()
+                next = null
+                try {
+                    when (val result = agent.run(prompt)) {
+                        is JclawResult.DeclineSent -> {
+                            val d = result.deployment
+                            tui.chat("j-claw: ✓ done — flavor ${d.flavor}", ChatKind.OK)
+                            tui.chat("j-claw: message → ${d.messageToOrganizer}", ChatKind.JCLAW)
+                        }
+                        is JclawResult.ChatReply -> {
+                            tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
+                        }
+                    }
+                } catch (t: Throwable) {
+                    tui.chat("✘ ${t.message ?: t.javaClass.simpleName}", ChatKind.ERR)
+                }
             }
         }
     }.apply { isDaemon = true; name = "jclaw-agent" }.start()
@@ -161,7 +180,6 @@ private fun formatToolForChat(toolName: String, args: String, result: String): S
         // Already chat-visible via UserTools.outbound — skip.
         "askBaruch", "pingBaruchPrivate", "awaitReaction" -> null
 
-        "searchPriorExcuses"     -> "🔍 j-claw checked prior declines → $resultShort"
         "getCalendar"            -> "📅 j-claw read the calendar → $resultShort"
         "getEventAttendees"      -> "👥 j-claw checked who's at the dinner → $resultShort"
         "getContactSensitivity"  -> "📇 j-claw looked up the organizer's sensitivity → $resultShort"
