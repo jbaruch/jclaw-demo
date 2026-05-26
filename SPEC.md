@@ -49,7 +49,7 @@ Stdio MCP server. Tools:
 
 ```
 getOrganizerSensitivity(name: String) → Sensitivity     // EASYGOING | NORMAL | TOUCHY
-sendDecline(eventId: String, message: String) → DeclineReceipt   // { delivered: true, deliveredAt: ISO }
+sendExcuse(eventId: String, message: String) → ExcuseReceipt   // { delivered: true, deliveredAt: ISO }
 ```
 
 Canned sensitivity map: `Roberto Cortez → EASYGOING`. Anyone else → `NORMAL`. (Reserved: a `TOUCHY` entry for live audience-Q&A bit if we have time.)
@@ -76,19 +76,19 @@ enum class ExcuseFlavor {
 
 enum class PlausibilityTier { AIRTIGHT, CREDIBLE, THIN, JENNY_FROM_THE_BLOCK }
 
-@LLMDescription("A request to decline a social obligation on the user's behalf")
-data class DeclineRequest(
-    @property:LLMDescription("Calendar event the user is declining") val eventId: String,
+@LLMDescription("A request to send an excuse for a social obligation on the user's behalf")
+data class ExcuseRequest(
+    @property:LLMDescription("Calendar event the user is bowing out of") val eventId: String,
     @property:LLMDescription("Excuse flavors used at this venue or with these attendees in the last 90 days") val recentlyUsedFlavors: List<ExcuseFlavor>,
     @property:LLMDescription("Names of people attending who can corroborate or contradict a story") val knownAttendees: List<String>,
-    @property:LLMDescription("Who organized the event — they will receive the decline") val organizerName: String,
+    @property:LLMDescription("Who organized the event — they will receive the excuse") val organizerName: String,
 )
 
-@LLMDescription("A decline drafted, staged, and ready to send")
-data class DeclineDeployment(
+@LLMDescription("An excuse drafted, staged, and ready to send")
+data class ExcuseDeployment(
     @property:LLMDescription("Excuse flavor selected") val flavor: ExcuseFlavor,
     @property:LLMDescription("Calendar event id created to back the story") val fakeCalendarEventId: String,
-    @property:LLMDescription("The decline message that will go to the organizer") val messageToOrganizer: String,
+    @property:LLMDescription("The excuse message that will go to the organizer") val messageToOrganizer: String,
     @property:LLMDescription("Hallway script — what to say if the organizer asks the next day") val hallwayScript: String,
 )
 
@@ -108,26 +108,26 @@ Four phases. Same shape, same models, same tool subsets on both sides.
 
 | Phase | Input → Output | Tools available | Model |
 |---|---|---|---|
-| `identifyDecline` | `String` → `DeclineRequest` | `userTools` + `readTools` | GPT-5.2 (cheap) |
-| `deployDecline` | `DeclineRequest` → `DeclineDeployment` | `readTools` + `writeTools` (NO user-facing tools — silent commit) | Sonnet 4 (mid-tier) |
-| `verifyDecline` | `DeclineDeployment` → `VerifyResult<DeclineDeployment>` | `userTools` + `readTools` | O3 (reasoning) |
-| `refineDecline` | `String` (feedback) → `DeclineDeployment` | `readTools` + `writeTools` | Sonnet 4 |
+| `identifyExcuse` | `String` → `ExcuseRequest` | `userTools` + `readTools` | GPT-5.2 (cheap) |
+| `deployExcuse` | `ExcuseRequest` → `ExcuseDeployment` | `readTools` + `writeTools` (NO user-facing tools — silent commit) | Sonnet 4 (mid-tier) |
+| `verifyExcuse` | `ExcuseDeployment` → `VerifyResult<ExcuseDeployment>` | `userTools` + `readTools` | O3 (reasoning) |
+| `refineExcuse` | `String` (feedback) → `ExcuseDeployment` | `readTools` + `writeTools` | Sonnet 4 |
 
 Edges:
 
 ```
-start          → identifyDecline
-identifyDecline → deployDecline
-deployDecline   → verifyDecline
-verifyDecline   → finish     when successful, emitting .input
-verifyDecline   → refineDecline   when !successful, emitting .feedback
-refineDecline   → verifyDecline
+start          → identifyExcuse
+identifyExcuse → deployExcuse
+deployExcuse   → verifyExcuse
+verifyExcuse   → finish     when successful, emitting .input
+verifyExcuse   → refineExcuse   when !successful, emitting .feedback
+refineExcuse   → verifyExcuse
 ```
 
-The **`deployDecline` not having user-facing tools is intentional** and narratively load-bearing: the agent commits to a plan silently, then `verifyDecline` is the one that pings the user with "✅ confirm? 👍/👎". Tool slicing has narrative consequence — don't soften it on the LC4J side.
+The **`deployExcuse` not having user-facing tools is intentional** and narratively load-bearing: the agent commits to a plan silently, then `verifyExcuse` is the one that pings the user with "✅ confirm? 👍/👎". Tool slicing has narrative consequence — don't soften it on the LC4J side.
 
 ### Koog side
-`subgraphWithTask<In, Out>` for the three regular phases, `subgraphWithVerification<DeclineDeployment>` for `verifyDecline` (it produces `CriticResult<DeclineDeployment>` automatically).
+`subgraphWithTask<In, Out>` for the three regular phases, `subgraphWithVerification<ExcuseDeployment>` for `verifyExcuse` (it produces `CriticResult<ExcuseDeployment>` automatically).
 
 ### LC4J Agentic side
 Equivalent shape using `@SequentialAgent` chain with `@ConditionalAgent` for the verify/refine loop. Viktor knows the LC4J idioms; the contract this spec enforces is the **typed I/O of each phase** and the **tool subset granted per phase**.
@@ -142,7 +142,7 @@ Three `ToolSet`s on each side. The names are flexible; the **slice** (read/write
 |---|---|---|
 | `UserTools(userTelegramId)` | Communication with the user only | `askUser`, `pingUserPrivate`, `awaitReaction` (returns 👍 or 👎) |
 | `ReadTools` | Read (no side effects) | `readCalendar` (calendar-mcp), `searchPriorExcuses` (memory), `getAttendeeList` (canned), `getOrganizerContact` (organizer-mcp) |
-| `WriteTools` | Write (real consequences) | `createCalendarEvent` (calendar-mcp), `sendDeclineToOrganizer` (organizer-mcp) |
+| `WriteTools` | Write (real consequences) | `createCalendarEvent` (calendar-mcp), `sendExcuseToOrganizer` (organizer-mcp) |
 
 Constructor parameters (`userTelegramId`, MCP client handles, memory provider) come via DI — **the LLM never sees them.** Both sides enforce this.
 
@@ -150,7 +150,7 @@ Constructor parameters (`userTelegramId`, MCP client handles, memory provider) c
 
 ## 6. Memory contract
 
-Both sides install chat memory backed by **the same shared SQLite file** at `mocks/memory.sqlite`, pre-seeded with the three prior declines (matching the canned calendar in §2.1).
+Both sides install chat memory backed by **the same shared SQLite file** at `mocks/memory.sqlite`, pre-seeded with the three prior excuses (matching the canned calendar in §2.1).
 
 - Koog: `install(ChatMemory) { chatHistoryProvider = SqliteChatHistoryProvider(...) }`
 - LC4J: equivalent chat-memory feature pointing at the same sqlite file
@@ -160,7 +160,7 @@ The pre-seeded memory contains plain-language entries like:
 - `"Declined Devoxx 2025 — told Stephan it was a family obligation"`
 - `"Declined Spring I/O 2026 — told Sergi the hotel had a problem"`
 
-`searchPriorExcuses()` queries this memory; the LLM uses the result to populate `DeclineRequest.recentlyUsedFlavors`.
+`searchPriorExcuses()` queries this memory; the LLM uses the result to populate `ExcuseRequest.recentlyUsedFlavors`.
 
 **Why this matters for the demo:** memory is what makes the agent's job *hard* (must pick a fresh excuse). The pre-seeded sqlite means the demo works on first run with no warm-up.
 
@@ -178,10 +178,10 @@ Both apps present a **TamboUI** terminal UI (Java TUI library — `jbaruch/tambo
 │                                                          │
 ├──────────────────────────────────────────────────────────┤
 │  TRACE                                                   │  ← subtask names, tool calls, models, durations
-│  ▸ identifyDecline   GPT-5.2     0.8s   ✓               │
+│  ▸ identifyExcuse   GPT-5.2     0.8s   ✓               │
 │    └ searchPriorExcuses → 3 hits                         │
-│  ▸ deployDecline      Sonnet 4   1.4s   ✓               │
-│  ▸ verifyDecline      O3          ⟳                      │
+│  ▸ deployExcuse      Sonnet 4   1.4s   ✓               │
+│  ▸ verifyExcuse      O3          ⟳                      │
 ├──────────────────────────────────────────────────────────┤
 │  PROMPT                                                  │  ← input + 👍/👎 reaction
 │  > _                                                     │
@@ -210,9 +210,9 @@ Both apps must be in the corresponding state at each beat. Sync points marked **
 | 4:00–9:00 | **Round 1 — chatbot in 5 min** ⇄ | Build basic `AIAgent(...)` one-liner, prompt → text reply | Build basic LC4J one-liner, same shape |
 | 9:00–10:00 | Pivot: *"this isn't an agent"* | — | — |
 | 10:00–18:00 | **Round 2 — j-claw v1: tools + mock MCPs** ⇄ | Register `UserTools` + `ReadTools` + `WriteTools`; wire calendar-mcp + organizer-mcp; agent picks an overused flavor and verify FAILS (no memory yet) | Same, in LC4J |
-| 18:00–23:00 | **Round 3 — j-claw v2: memory** ⇄ | Install ChatMemory pointing at `mocks/memory.sqlite`; re-run same prompt; agent now sees prior declines and avoids them | Same |
+| 18:00–23:00 | **Round 3 — j-claw v2: memory** ⇄ | Install ChatMemory pointing at `mocks/memory.sqlite`; re-run same prompt; agent now sees prior excuses and avoids them | Same |
 | 23:00–25:00 | **Tessl Secret Weapon interlude** | Baruch flashes the koog tile + tamboui tile that produced both apps | — |
-| 25:00–37:00 | **Round 4 — domain modeling + subtooling (THE HEADLINE)** ⇄ | Refactor to four-subtask pipeline. Show `DeclineRequest`/`DeclineDeployment` on slide. Run full identify → deploy → verify → refine loop live. Picks `BARUCH_CLASSIC` first (laugh), fails verify (`JENNY_FROM_THE_BLOCK` tier), refines to `JET_LAG_HONEST`, passes, sends | Same loop in LC4J |
+| 25:00–37:00 | **Round 4 — domain modeling + subtooling (THE HEADLINE)** ⇄ | Refactor to four-subtask pipeline. Show `ExcuseRequest`/`ExcuseDeployment` on slide. Run full identify → deploy → verify → refine loop live. Picks `BARUCH_CLASSIC` first (laugh), fails verify (`JENNY_FROM_THE_BLOCK` tier), refines to `JET_LAG_HONEST`, passes, sends | Same loop in LC4J |
 | 37:00–40:00 | **The verdict** | Comparison table (both win) | — |
 | 40:00–43:00 | **The winner is the Java developer** | — | — |
 | 43:00–45:00 | **Bookend** — Agent Johnson + j-claw declines a final invite from the audience | — | — |
@@ -254,7 +254,7 @@ When this flavor is picked, `messageToOrganizer` must contain the literal string
 
 ### `PlausibilityTier.JENNY_FROM_THE_BLOCK`
 
-The worst tier. `verifyDecline` returns `successful = false` whenever the deployment scores this tier. Audience sees the enum value on the slide in §3 and on the trace pane during Round 4.
+The worst tier. `verifyExcuse` returns `successful = false` whenever the deployment scores this tier. Audience sees the enum value on the slide in §3 and on the trace pane during Round 4.
 
 ### Viktor-equivalent
 

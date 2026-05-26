@@ -15,18 +15,18 @@ flowchart TD
     Start([User prompt]) --> Classify
 
     Classify["classify<br/>O3 Mini · reasoning"]
-    Classify -- "intent = DECLINE_REQUEST" --> Identify
+    Classify -- "intent = EXCUSE_REQUEST" --> Identify
     Classify -- "intent = CHAT" --> ChatReply
 
-    subgraph Pipeline [Decline pipeline]
-        Identify["identifyDecline<br/>GPT-4o<br/>getCalendar, getEventAttendees"]
-        Deploy["deployDecline<br/>Sonnet 4<br/>sendDecline"]
-        Verify{"verifyDecline<br/>O3 · reasoning<br/>awaitReaction"}
-        Refine["refineDecline<br/>Sonnet 4"]
+    subgraph Pipeline [Excuse pipeline]
+        Identify["identifyExcuse<br/>GPT-4o<br/>getCalendar, getEventAttendees"]
+        Deploy["deployExcuse<br/>Sonnet 4<br/>sendExcuse"]
+        Verify{"verifyExcuse<br/>O3 · reasoning<br/>awaitReaction"}
+        Refine["refineExcuse<br/>Sonnet 4"]
 
         Identify --> Deploy
         Deploy --> Verify
-        Verify -- "successful = true" --> DeclineSent([JclawResult.DeclineSent])
+        Verify -- "successful = true" --> ExcuseSent([JclawResult.ExcuseSent])
         Verify -- "successful = false" --> Refine
         Refine --> Verify
     end
@@ -40,6 +40,6 @@ flowchart TD
 
     class Start start;
     class Classify route;
-    class DeclineSent,ChatDone terminal;
+    class ExcuseSent,ChatDone terminal;
 
     style Pipeline fill:#fafaf5,stroke:#9c8a5a,stroke-width:1px,color:#3f3f46;

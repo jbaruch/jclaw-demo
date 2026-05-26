@@ -12,20 +12,20 @@ import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
 import ai.koog.prompt.executor.clients.openai.OpenAIModels
 
 /**
- * The j-claw graph — proper intent routing in front of the four-phase decline pipeline.
+ * The j-claw graph — proper intent routing in front of the four-phase excuse pipeline.
  *
- *   classify        : String                         -> ClassifiedInput   (DECLINE_REQUEST | CHAT)
+ *   classify        : String                         -> ClassifiedInput   (EXCUSE_REQUEST | CHAT)
  *
- * Decline branch (when intent == DECLINE_REQUEST):
- *   identifyDecline : String                         -> DeclineRequest
- *   deployDecline   : DeclineRequest                 -> DeclineDeployment
- *   verifyDecline   : DeclineDeployment              -> CriticResult<DeclineDeployment>
- *   refineDecline   : String (feedback)              -> DeclineDeployment
+ * Excuse branch (when intent == EXCUSE_REQUEST):
+ *   identifyExcuse  : String                         -> ExcuseRequest
+ *   deployExcuse    : ExcuseRequest                  -> ExcuseDeployment
+ *   verifyExcuse    : ExcuseDeployment               -> CriticResult<ExcuseDeployment>
+ *   refineExcuse    : String (feedback)              -> ExcuseDeployment
  *
  * Chat branch (when intent == CHAT):
  *   chatReply       : String                         -> String   (free-form reply)
  *
- * Both branches converge on nodeFinish wrapped in JclawResult.{DeclineSent | ChatReply}.
+ * Both branches converge on nodeFinish wrapped in JclawResult.{ExcuseSent | ChatReply}.
  */
 fun buildJclawStrategy(
     userTools: List<ToolBase<*, *>>,
@@ -41,10 +41,10 @@ fun buildJclawStrategy(
         ) { input ->
             """
             Classify Baruch's message. Pick exactly one intent:
-              - DECLINE_REQUEST: he's asking you to decline, cancel, RSVP no, get him out of
-                an event, or send a regret. Anything that requires the decline workflow.
+              - EXCUSE_REQUEST: he's asking you to decline, cancel, RSVP no, get him out of
+                an event, or send a regret. Anything that requires the excuse workflow.
               - CHAT: a follow-up question, small talk, status check, hypothetical, anything
-                that does NOT require sending a new decline.
+                that does NOT require sending a new excuse.
 
             Then echo the original message verbatim into userMessage so downstream subgraphs
             can consume it. Do not paraphrase or alter the message.
@@ -53,31 +53,32 @@ fun buildJclawStrategy(
             """.trimIndent()
         }
 
-        val identifyDecline by subgraphWithTask<String, DeclineRequest>(
+        val identifyExcuse by subgraphWithTask<String, ExcuseRequest>(
             tools = userTools + readTools,
-            name = "identifyDecline",
+            name = "identifyExcuse",
             llmModel = OpenAIModels.Chat.GPT4o,
         ) { input ->
             """
-            Identify what Baruch wants to decline. Call getCalendar to find the event, then
-            getEventAttendees(eventId) to learn who else is attending. Produce a DeclineRequest
+            Identify what Baruch wants to bow out of. Call getCalendar to find the event, then
+            getEventAttendees(eventId) to learn who else is attending. Produce an ExcuseRequest
             with all four fields filled.
 
-            For recentlyUsedFlavors: look at YOUR OWN CONVERSATION HISTORY (the prior turns
-            already loaded into this context) and list the flavors you've used in the past
-            three months. Don't call any tool for this — your memory already has the answer.
+            For recentlyUsedFlavors: consult the prior-excuse facts retrieved from
+            LongTermMemory and augmented into the system context. List the flavors used
+            in the past three months. Don't call any tool — the retrieved facts already
+            have the answer.
 
             User said: $input
             """.trimIndent()
         }
 
-        val deployDecline by subgraphWithTask<DeclineRequest, DeclineDeployment>(
+        val deployExcuse by subgraphWithTask<ExcuseRequest, ExcuseDeployment>(
             tools = readTools + writeTools,  // NO user tools — commit silently
-            name = "deployDecline",
+            name = "deployExcuse",
             llmModel = AnthropicModels.Sonnet_4,
         ) { request ->
             """
-            Deploy a decline.
+            Deploy an excuse.
 
             FIRST-ATTEMPT POLICY: Baruch's personal classic move is `BARUCH_CLASSIC` — the
             "I have to go take care of Jenny." answer. ALWAYS pick `BARUCH_CLASSIC` on the
@@ -98,21 +99,22 @@ fun buildJclawStrategy(
             """.trimIndent()
         }
 
-        val verifyDecline by subgraphWithVerification<DeclineDeployment>(
+        val verifyExcuse by subgraphWithVerification<ExcuseDeployment>(
             tools = userTools + readTools,
             llmModel = OpenAIModels.Chat.O3,
         ) { deployment ->
             """
-            Pressure-test this decline. You decide successful = true or false; if false, provide
+            Pressure-test this excuse. You decide successful = true or false; if false, provide
             actionable feedback the refiner can use to pick a better flavor.
 
             STEP 1 — Apply the autonomous rules. REJECT (successful = false) when ANY is true:
 
-            (a) The flavor was recently used. Check YOUR OWN CONVERSATION HISTORY (prior
-                turns loaded into this context) for the flavors you've used in the past
-                three months. If deployment.flavor matches any of them, fail with feedback
-                naming the duplicate flavor and the organizer it was last used with. Don't
-                call any tool — your memory already has the answer.
+            (a) The flavor was recently used. Check the prior-excuse facts retrieved
+                from LongTermMemory (augmented into the system context) for the flavors
+                used in the past three months. If deployment.flavor matches any of them,
+                fail with feedback naming the duplicate flavor and the organizer it was
+                last used with. Don't call any tool — the retrieved facts already have
+                the answer.
 
             (b) The flavor is BARUCH_CLASSIC. This is the "I have to go take care of Jenny."
                 answer and is tier JENNY_FROM_THE_BLOCK — too thin for any real organizer.
@@ -144,23 +146,39 @@ fun buildJclawStrategy(
             """.trimIndent()
         }
 
-        val refineDecline by subgraphWithTask<String, DeclineDeployment>(
+        val refineExcuse by subgraphWithTask<String, ExcuseDeployment>(
             tools = readTools + writeTools,
-            name = "refineDecline",
+            name = "refineExcuse",
             llmModel = AnthropicModels.Sonnet_4,
         ) { feedback ->
             """
-            The previous deployDecline attempt failed verification. Feedback:
+            The previous deployExcuse attempt failed verification. Feedback:
             $feedback
 
-            Produce a NEW DeclineDeployment with these HARD constraints:
-              - DO NOT pick BARUCH_CLASSIC again. It was just rejected as tier
+            You are the thoughtful refiner — the deployer's first attempt was a lazy
+            BARUCH_CLASSIC. Your job is to pick a CREDIBLE flavor by REASONING about
+            Baruch's situation. Do not default to any specific flavor; the right choice
+            depends on context.
+
+            HARD constraints:
+              - DO NOT pick BARUCH_CLASSIC. It was just rejected as tier
                 JENNY_FROM_THE_BLOCK and will be rejected again.
-              - DO NOT pick any flavor mentioned in the feedback as recently used.
-              - PREFER JET_LAG_HONEST as the safe credible choice; DEADLINE is the
-                fallback. Pick from those two unless the feedback says they're burned.
-              - Draft a new messageToOrganizer (two+ sentences, no placeholders) and a
-                short hallwayScript that's consistent with the new flavor.
+              - DO NOT pick any flavor named in the feedback as recently used. Also
+                cross-check against the prior-excuse facts retrieved from LongTermMemory
+                — same answer source the verifier used.
+
+            PICK THE FLAVOR by reasoning over:
+              - The organizer's sensitivity (call getContactSensitivity if you haven't
+                this run) — a TOUCHY organizer needs an AIRTIGHT-tier excuse;
+                EASYGOING tolerates a CREDIBLE one.
+              - The known attendees — an "out of town" or "stuck elsewhere" flavor
+                contradicts a known attendee who would have just seen Baruch that day.
+              - Which flavors remain available (full ExcuseFlavor enum minus
+                BARUCH_CLASSIC minus recently used). Pick the one that best fits
+                THIS organizer and THIS attendee list — not a fixed default.
+
+            Then draft a messageToOrganizer (two+ sentences, no placeholders) and a
+            short hallwayScript consistent with the chosen flavor.
             """.trimIndent()
         }
 
@@ -172,15 +190,14 @@ fun buildJclawStrategy(
             """
             Today's date: 2026-05-26.
 
-            Answer Baruch's question or chat with him. Do NOT take any decline-related
-            actions — no calendar reads, no sendDecline, no new excuse.
+            Answer Baruch's question or chat with him. Do NOT take any excuse-related
+            actions — no calendar reads, no sendExcuse, no new excuse.
 
-            About your memory: the prior decline turns already loaded into this context
-            are HISTORICAL records from past events — each is tagged with the date in
-            square brackets at the start, e.g. [2025-06-19]. They are NOT today's task.
-            When Baruch asks "what did we use last year" or "did you tell <organizer>...",
-            consult those dated entries. If he asks about an event that doesn't appear in
-            your memory, say so plainly — don't invent.
+            About your memory: the prior-excuse facts retrieved from LongTermMemory
+            describe past events — each is dated in its content. They are NOT today's
+            task. When Baruch asks "what did we use last year" or "did you tell
+            <organizer>...", consult those retrieved facts. If he asks about an event
+            that doesn't appear in the retrieved facts, say so plainly — don't invent.
 
             User said: $input
             """.trimIndent()
@@ -188,13 +205,13 @@ fun buildJclawStrategy(
 
         edge(nodeStart forwardTo classify)
 
-        // Decline branch — when intent classifies as a decline request.
-        edge(classify forwardTo identifyDecline onCondition { it: ClassifiedInput -> it.intent == IntentClassification.DECLINE_REQUEST } transformed { it.userMessage })
-        edge(identifyDecline forwardTo deployDecline)
-        edge(deployDecline forwardTo verifyDecline)
-        edge(verifyDecline forwardTo nodeFinish onCondition { it: CriticResult<DeclineDeployment> -> it.successful } transformed { JclawResult.DeclineSent(it.input) })
-        edge(verifyDecline forwardTo refineDecline onCondition { it: CriticResult<DeclineDeployment> -> !it.successful } transformed { it.feedback ?: "(no feedback)" })
-        edge(refineDecline forwardTo verifyDecline)
+        // Excuse branch — when intent classifies as an excuse request.
+        edge(classify forwardTo identifyExcuse onCondition { it: ClassifiedInput -> it.intent == IntentClassification.EXCUSE_REQUEST } transformed { it.userMessage })
+        edge(identifyExcuse forwardTo deployExcuse)
+        edge(deployExcuse forwardTo verifyExcuse)
+        edge(verifyExcuse forwardTo nodeFinish onCondition { it: CriticResult<ExcuseDeployment> -> it.successful } transformed { JclawResult.ExcuseSent(it.input) })
+        edge(verifyExcuse forwardTo refineExcuse onCondition { it: CriticResult<ExcuseDeployment> -> !it.successful } transformed { it.feedback ?: "(no feedback)" })
+        edge(refineExcuse forwardTo verifyExcuse)
 
         // Chat branch — when intent classifies as anything else.
         edge(classify forwardTo chatReply onCondition { it: ClassifiedInput -> it.intent == IntentClassification.CHAT } transformed { it.userMessage })

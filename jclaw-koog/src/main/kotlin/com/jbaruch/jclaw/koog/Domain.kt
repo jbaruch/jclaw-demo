@@ -23,10 +23,10 @@ enum class ExcuseFlavor {
 @Serializable
 enum class PlausibilityTier { AIRTIGHT, CREDIBLE, THIN, JENNY_FROM_THE_BLOCK }
 
-@LLMDescription("A request to decline a social obligation on Baruch's behalf")
+@LLMDescription("A request to send an excuse for a social obligation on Baruch's behalf")
 @Serializable
-data class DeclineRequest(
-    @property:LLMDescription("Calendar event id Baruch is declining (from conference-mcp)")
+data class ExcuseRequest(
+    @property:LLMDescription("Calendar event id Baruch is excusing himself from (from conference-mcp)")
     val eventId: String,
 
     @property:LLMDescription("Excuse flavors used at this venue or with these attendees in the last 90 days")
@@ -35,17 +35,17 @@ data class DeclineRequest(
     @property:LLMDescription("Names of speakers attending — the excuse must not contradict any of them seeing Baruch")
     val knownAttendees: List<String>,
 
-    @property:LLMDescription("Who organized the event — they will receive the decline")
+    @property:LLMDescription("Who organized the event — they will receive the excuse")
     val organizerName: String,
 )
 
-@LLMDescription("A decline j-claw has drafted and is ready to send")
+@LLMDescription("An excuse j-claw has drafted and is ready to send")
 @Serializable
-data class DeclineDeployment(
+data class ExcuseDeployment(
     @property:LLMDescription("Excuse flavor selected")
     val flavor: ExcuseFlavor,
 
-    @property:LLMDescription("The decline message that will go to the organizer")
+    @property:LLMDescription("The excuse message that will go to the organizer")
     val messageToOrganizer: String,
 
     @property:LLMDescription("Hallway script — what to say if any of the attendees asks the next day")
@@ -54,29 +54,29 @@ data class DeclineDeployment(
 
 /** Intent classification from the routing subgraph at the head of the strategy graph. */
 @Serializable
-enum class IntentClassification { DECLINE_REQUEST, CHAT }
+enum class IntentClassification { EXCUSE_REQUEST, CHAT }
 
 /**
  * The classify subgraph's output — carries the routing decision PLUS the original
- * user message so downstream subgraphs (identifyDecline / chatReply) can consume it.
+ * user message so downstream subgraphs (identifyExcuse / chatReply) can consume it.
  */
 @LLMDescription("Routing decision for the next subgraph plus the original user message")
 @Serializable
 data class ClassifiedInput(
-    @property:LLMDescription("Pick DECLINE_REQUEST if the user is asking to decline / cancel / RSVP no to an event. Otherwise CHAT.")
+    @property:LLMDescription("Pick EXCUSE_REQUEST if the user is asking to decline / cancel / RSVP no to an event. Otherwise CHAT.")
     val intent: IntentClassification,
     @property:LLMDescription("The user's original message, verbatim, passed through unchanged")
     val userMessage: String,
 )
 
 /**
- * The strategy's terminal output — either a sent decline or a free-form chat reply.
+ * The strategy's terminal output — either a sent excuse or a free-form chat reply.
  * The routing subgraph picks the branch; only one of these is ever produced per run.
  */
 @Serializable
 sealed interface JclawResult {
     @Serializable
-    data class DeclineSent(val deployment: DeclineDeployment) : JclawResult
+    data class ExcuseSent(val deployment: ExcuseDeployment) : JclawResult
 
     @Serializable
     data class ChatReply(val text: String) : JclawResult

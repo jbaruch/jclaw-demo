@@ -27,7 +27,7 @@ jclaw-demo/
 | `round1-chatbot` | Basic `AIAgent(...)` one-liner — chatbot, no tools, no memory | stripping tools, MCP, memory, pipeline from main |
 | `round2-tools-mcp` | + sliced `ToolSet`s + mock MCP servers, no memory | stripping memory + pipeline from main |
 | `round3-memory` | + `ChatMemory` backed by `mocks/memory.sqlite` | stripping pipeline from main |
-| `main` (Round 4) | + domain-modeled subtask pipeline (`identifyDecline` → `deployDecline` → `verifyDecline` → `refineDecline`) with typed I/O and sliced tools per phase | this is the headline state |
+| `main` (Round 4) | + domain-modeled subtask pipeline (`identifyExcuse` → `deployExcuse` → `verifyExcuse` → `refineExcuse`) with typed I/O and sliced tools per phase | this is the headline state |
 
 Round 4 is the headline. The progressive structure exists so the audience can see what each capability adds; the branch-strip approach exists so we don't have to keep four module variants compilable in parallel.
 

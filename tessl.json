@@ -7,6 +7,9 @@
     },
     "jbaruch/koog": {
       "version": "0.3.1"
+    },
+    "jbaruch/kotlin-tutor": {
+      "version": "0.7.0"
     }
   }
 }

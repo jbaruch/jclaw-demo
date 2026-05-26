@@ -19,14 +19,14 @@ import java.time.Instant
  *
  * Tools:
  *   getContactSensitivity(name) -> Sensitivity
- *   sendDecline(eventId, message) -> DeclineReceipt
+ *   sendExcuse(eventId, message) -> ExcuseReceipt
  */
 
 @Serializable
 enum class Sensitivity { EASYGOING, NORMAL, TOUCHY }
 
 @Serializable
-data class DeclineReceipt(val delivered: Boolean, val deliveredAt: String)
+data class ExcuseReceipt(val delivered: Boolean, val deliveredAt: String)
 
 @LLMDescription("Personal-CRM notes about Baruch's contacts: sensitivity profiles and the ability to send messages")
 class ContactsTools : ToolSet {
@@ -43,17 +43,17 @@ class ContactsTools : ToolSet {
     }
 
     @Tool
-    @LLMDescription("Sends a decline message to the organizer of the named event")
-    fun sendDecline(
+    @LLMDescription("Sends an excuse message to the organizer of the named event")
+    fun sendExcuse(
         @LLMDescription("Calendar event id (from conference-mcp's getCalendar)")
         eventId: String,
-        @LLMDescription("The decline message text the organizer will see")
+        @LLMDescription("The excuse message text the organizer will see")
         message: String,
-    ): DeclineReceipt {
+    ): ExcuseReceipt {
         val now = Instant.now().toString()
         val preview = if (message.length > 80) message.take(80) + "…" else message
-        System.err.println("[contacts-mcp] sendDecline(eventId=\"$eventId\") delivered at $now — \"$preview\"")
-        return DeclineReceipt(delivered = true, deliveredAt = now)
+        System.err.println("[contacts-mcp] sendExcuse(eventId=\"$eventId\") delivered at $now — \"$preview\"")
+        return ExcuseReceipt(delivered = true, deliveredAt = now)
     }
 
     private val sensitivities: Map<String, Sensitivity> = mapOf(

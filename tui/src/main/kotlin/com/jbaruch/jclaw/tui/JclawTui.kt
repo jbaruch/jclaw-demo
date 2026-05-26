@@ -120,9 +120,9 @@ class JclawTui(
         // Update the persistent lists' items each frame WITHOUT rebuilding the
         // list elements themselves — that keeps the user's scroll position alive.
         val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
-            .map { (txt, kind) -> chatText(txt, kind) as StyledElement<*> }.toTypedArray()
+            .map { (txt, kind) -> chatText(txt, kind) }.toTypedArray()
         val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
-            .map { (txt, kind) -> traceText(txt, kind) as StyledElement<*> }.toTypedArray()
+            .map { (txt, kind) -> traceText(txt, kind) }.toTypedArray()
         chatListElement.elements(*chatItems)
         traceListElement.elements(*traceItems)
 

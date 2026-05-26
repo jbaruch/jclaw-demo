@@ -8,9 +8,9 @@ import kotlinx.coroutines.channels.Channel
 /**
  * UserTools — local communication-with-Baruch tools.
  *
- * Calendar / attendee / organizer / sendDecline come from the two mock MCP
+ * Calendar / attendee / organizer / sendExcuse come from the two mock MCP
  * servers (conference-mcp + contacts-mcp). "Memory" is NOT a tool here — Round
- * 3 installs Koog's ChatMemory feature, which preloads prior-decline turns into
+ * 3 installs Koog's ChatMemory feature, which preloads prior-excuse turns into
  * the LLM's context automatically. No searchPriorExcuses call needed.
  *
  * Constructor parameters are DI — the LLM never sees them. Tool annotations +

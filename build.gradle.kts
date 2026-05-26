@@ -11,7 +11,7 @@ allprojects {
 subprojects {
     plugins.withType<org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper> {
         extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension> {
-            jvmToolchain(17)
+            jvmToolchain(21)
         }
     }
 }
