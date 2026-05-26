@@ -3,10 +3,12 @@ package com.jbaruch.jclaw.tui
 import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
 import dev.tamboui.toolkit.Toolkit.column
+import dev.tamboui.toolkit.Toolkit.list
 import dev.tamboui.toolkit.Toolkit.panel
 import dev.tamboui.toolkit.Toolkit.row
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
+import dev.tamboui.toolkit.element.StyledElement
 import dev.tamboui.toolkit.app.ToolkitApp
 import dev.tamboui.toolkit.element.Element
 import dev.tamboui.widgets.input.TextInputState
@@ -66,20 +68,25 @@ class JclawTui(
     }
 
     override fun render(): Element {
-        // Pre-wrap stores already-sized rows, so plain text() per row is fine here.
-        val chatChildren = chatLines.takeLast(MAX_LINES)
-            .map { text(it) as Element }.toTypedArray()
-        val traceChildren = traceLines.takeLast(MAX_LINES)
-            .map { text(it).fg(Color.CYAN) as Element }.toTypedArray()
+        // Pre-wrap stores already-sized rows, so each list item is one
+        // already-wrapped row. ListElement.stickyScroll() keeps the view
+        // pinned to the most recent line as new content arrives; scrollbar()
+        // shows a visible track so the audience knows there's more above.
+        val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
+            .map { text(it) as StyledElement<*> }.toTypedArray()
+        val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
+            .map { text(it).fg(Color.CYAN) as StyledElement<*> }.toTypedArray()
 
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
             ?: text(" ")
 
         return column(
-            panel("CHAT", column(*chatChildren)).rounded()
-                .constraint(Constraint.fill()),
-            panel("TRACE", column(*traceChildren)).rounded()
-                .constraint(Constraint.fill()),
+            panel("CHAT",
+                list(*chatItems).stickyScroll().scrollbar()
+            ).rounded().constraint(Constraint.fill()),
+            panel("TRACE",
+                list(*traceItems).stickyScroll().scrollbar()
+            ).rounded().constraint(Constraint.fill()),
             row(statusLine).constraint(Constraint.length(1)),
             panel("PROMPT",
                 textInput(promptInput)
