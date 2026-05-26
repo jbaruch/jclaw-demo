@@ -116,7 +116,10 @@ fun main(args: Array<String>) {
                 // langfuse.com — the equivalent of LangChain4j-Agentic's System Report.
                 // Reads LANGFUSE_HOST / LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY env vars.
                 if (System.getenv("LANGFUSE_PUBLIC_KEY") != null) {
-                    install(OpenTelemetry) { addLangfuseExporter() }
+                    install(OpenTelemetry) {
+                        setVerbose(true)  // emit prompts, completions, token counts on each span
+                        addLangfuseExporter()
+                    }
                 }
                 handleEvents {
                     onSubgraphExecutionStarting { ctx ->

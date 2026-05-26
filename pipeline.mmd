@@ -1,0 +1,38 @@
+%% j-claw pipeline — stage-friendly Mermaid diagram of the Round 4 strategy.
+%%
+%% Hand-curated to mirror Strategy.kt's buildJclawStrategy(). If you edit the
+%% strategy (add a subgraph, change a model, rewire an edge), keep this file in
+%% sync. Koog's strategy.asMermaidDiagram() auto-generates a low-level version
+%% that exposes every internal node — readable for debugging, unreadable on a
+%% projector. This file trades drift risk for clarity at stage scale.
+%%
+%% Usage: paste at https://mermaid.live, fullscreen, project. Or render offline:
+%%   npx -p @mermaid-js/mermaid-cli mmdc -i pipeline.mmd -o pipeline.png -w 2400 -H 1350
+
+flowchart TD
+    Start([User prompt]) --> Classify
+
+    Classify["classify<br/>O3 Mini · reasoning"]
+    Classify -- "intent = DECLINE_REQUEST" --> Identify
+    Classify -- "intent = CHAT" --> ChatReply
+
+    subgraph Decline pipeline
+        Identify["identifyDecline<br/>GPT-4o<br/>getCalendar, getEventAttendees"]
+        Deploy["deployDecline<br/>Sonnet 4<br/>sendDecline"]
+        Verify{"verifyDecline<br/>O3 · reasoning<br/>awaitReaction"}
+        Refine["refineDecline<br/>Sonnet 4"]
+
+        Identify --> Deploy
+        Deploy --> Verify
+        Verify -- "successful = true" --> DeclineSent([JclawResult.DeclineSent])
+        Verify -- "successful = false" --> Refine
+        Refine --> Verify
+    end
+
+    ChatReply["chatReply<br/>Sonnet 4.5<br/>UserTools only"]
+    ChatReply --> ChatDone([JclawResult.ChatReply])
+
+    classDef route fill:#fef3c7,stroke:#f59e0b,color:#92400e;
+    classDef terminal fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    class Classify route;
+    class DeclineSent,ChatDone terminal;
