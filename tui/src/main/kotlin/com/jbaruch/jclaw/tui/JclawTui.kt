@@ -2,6 +2,7 @@ package com.jbaruch.jclaw.tui
 
 import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
+import dev.tamboui.style.Style
 import dev.tamboui.toolkit.Toolkit.column
 import dev.tamboui.toolkit.Toolkit.list
 import dev.tamboui.toolkit.Toolkit.panel
@@ -86,10 +87,22 @@ class JclawTui(
 
         return column(
             panel("CHAT",
-                list(*chatItems).stickyScroll().scrollbar()
+                list(*chatItems)
+                    .stickyScroll()
+                    .scrollbar()
+                    .selected(-1)                 // no item selected by default
+                    .highlightSymbol("")          // no "> " prefix on the selected row
+                    .highlightStyle(Style.EMPTY)  // no inverted-color highlight band
+                    .focusable()                  // route mouse-wheel events here
             ).rounded().constraint(Constraint.fill()),
             panel("TRACE",
-                list(*traceItems).stickyScroll().scrollbar()
+                list(*traceItems)
+                    .stickyScroll()
+                    .scrollbar()
+                    .selected(-1)
+                    .highlightSymbol("")
+                    .highlightStyle(Style.EMPTY)
+                    .focusable()
             ).rounded().constraint(Constraint.fill()),
             row(statusLine).constraint(Constraint.length(1)),
             panel("PROMPT",
