@@ -1,6 +1,5 @@
 package com.jbaruch.jclaw.koog
 
-import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.core.tools.reflect.asTools
@@ -18,16 +17,15 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 
 /**
- * j-claw — Round 3 (tools + MCP + memory, no pipeline yet) entry point.
+ * j-claw — Round 2 (tools + MCP, no memory yet) entry point.
  *
  * Layout:
  *   - Two mock MCP servers (conference-mcp, contacts-mcp) launched as subprocesses
  *   - Two MCP-backed tool surfaces (conference-mcp = read, contacts-mcp = read + write)
  *     plus a local UserTools for asking Baruch and awaiting his y/n reactions
- *   - Real Koog ChatMemory pre-seeded with prior-decline conversation turns
- *     (via SeedMemoryProvider — no searchPriorExcuses tool needed)
- *   - NO strategy — the agent reasons freely over the available tools. The
- *     four-phase typed pipeline arrives in Round 4.
+ *   - NO memory — the agent has no record of prior declines, so nothing prevents
+ *     it from re-using a recently-burned excuse. ChatMemory arrives in Round 3.
+ *   - NO strategy — the agent reasons freely over the available tools.
  *   - TamboUI TUI: CHAT / TRACE / STATUS / PROMPT
  *
  * Required env: OPENAI_API_KEY, ANTHROPIC_API_KEY.
@@ -93,25 +91,18 @@ fun main(args: Array<String>) {
                           2) getEventAttendees
                           3) getContactSensitivity
                           4) sendDecline   ← MANDATORY. Without this call the task FAILED.
-                    R4. Pick a flavor that does NOT appear in your memory for the same
-                        organizer or venue. The pre-loaded turns tagged with [YYYY-MM-DD] are
-                        historical — check them. EMERGENCY_MEETING / FAMILY_OBLIGATION /
-                        HOTEL_ISSUE are typically burned. Prefer JET_LAG_HONEST or DEADLINE.
+                    R4. Pick whatever excuse fits — you have NO record of prior declines, so
+                        any flavor is fair game. (Memory arrives in Round 3.)
                     R5. ONLY after sendDecline returns, write ONE short summary line telling
                         Baruch what you sent and to whom. Never before.
 
                     FOR FOLLOW-UPS / QUESTIONS / SMALL TALK: just answer in chat. Don't run
-                    the workflow. Read your memory if asked about past declines. If you don't
-                    know, say so plainly.
+                    the workflow. You have no memory of past conversations and no record of
+                    prior excuses; if Baruch asks something you can't answer from this turn,
+                    say so plainly.
                 """.trimIndent(),
                 maxIterations = 200,
             ) {
-                install(ChatMemory) {
-                    chatHistoryProvider = SeedMemoryProvider(
-                        onLoadTrace = { tui.trace(it, TraceKind.TOOL_CALL) },
-                        onLoadChat  = { tui.chat(it, ChatKind.TOOL_RESULT) },
-                    )
-                }
                 handleEvents {
                     onToolCallStarting { ctx ->
                         tui.trace("   ↪ ${ctx.toolName}(${ctx.toolArgs})", TraceKind.TOOL_CALL)
@@ -126,9 +117,9 @@ fun main(args: Array<String>) {
                 }
             }
 
-            // Greet, then loop: every PROMPT submission is a fresh agent.run(). No history
-            // is carried between turns — ChatMemory loads the pre-seeded prior declines on
-            // each call, but the current run's turns aren't persisted.
+            // Greet, then loop: every PROMPT submission is a fresh agent.run(). With no
+            // memory installed, every turn is a blank slate — follow-ups about past
+            // declines land on an agent that genuinely has no record of them.
             tui.chat(
                 "j-claw: At your service, sir. Shall we engineer a gracious extraction " +
                     "from some obligation — or is there other business?",
