@@ -16,6 +16,12 @@ import dev.tamboui.toolkit.elements.ListElement
 import dev.tamboui.tui.TuiConfig
 import dev.tamboui.widgets.input.TextInputState
 
+/** What kind of CHAT line — drives the color. */
+enum class ChatKind { JCLAW, YOU, TOOL_RESULT, OK, ERR }
+
+/** What kind of TRACE line — drives the color. */
+enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL }
+
 /**
  * Three-pane TUI for the j-claw demo, plus a ridiculous status line.
  *   CHAT   — the conversation between Baruch and j-claw
@@ -36,8 +42,8 @@ class JclawTui(
     private val onSubmit: (String) -> Unit,
 ) : ToolkitApp() {
 
-    private val chatLines: MutableList<String> = mutableListOf()
-    private val traceLines: MutableList<String> = mutableListOf()
+    private val chatLines: MutableList<Pair<String, ChatKind>> = mutableListOf()
+    private val traceLines: MutableList<Pair<String, TraceKind>> = mutableListOf()
     private val promptInput = TextInputState()
 
     // Persistent ListElement instances. ListElement holds its scroll position
@@ -66,13 +72,13 @@ class JclawTui(
         runner()?.focusManager()?.setFocus(PROMPT_ID)
     }
 
-    fun chat(line: String) {
-        val rows = wrap(line)
+    fun chat(line: String, kind: ChatKind = ChatKind.JCLAW) {
+        val rows = wrap(line).map { it to kind }
         runner()?.runOnRenderThread { chatLines.addAll(rows) }
     }
 
-    fun trace(line: String) {
-        val rows = wrap(line)
+    fun trace(line: String, kind: TraceKind = TraceKind.TOOL_CALL) {
+        val rows = wrap(line).map { it to kind }
         runner()?.runOnRenderThread { traceLines.addAll(rows) }
     }
 
@@ -92,13 +98,27 @@ class JclawTui(
         }
     }
 
+    private fun chatText(line: String, kind: ChatKind): StyledElement<*> = when (kind) {
+        ChatKind.JCLAW       -> text(line)                              // default — easy to read at length
+        ChatKind.YOU         -> text(line).fg(Color.GREEN).bold()       // user input pops
+        ChatKind.TOOL_RESULT -> text(line).fg(Color.YELLOW)             // data the agent learned
+        ChatKind.OK          -> text(line).fg(Color.GREEN).bold()       // final success
+        ChatKind.ERR         -> text(line).fg(Color.RED).bold()         // errors
+    }
+
+    private fun traceText(line: String, kind: TraceKind): StyledElement<*> = when (kind) {
+        TraceKind.SUBGRAPH_START -> text(line).fg(Color.MAGENTA).bold()  // new phase opens
+        TraceKind.SUBGRAPH_END   -> text(line).fg(Color.GREEN)            // phase result
+        TraceKind.TOOL_CALL      -> text(line).fg(Color.CYAN)             // every tool invocation
+    }
+
     override fun render(): Element {
         // Update the persistent lists' items each frame WITHOUT rebuilding the
         // list elements themselves — that keeps the user's scroll position alive.
         val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
-            .map { text(it) as StyledElement<*> }.toTypedArray()
+            .map { (txt, kind) -> chatText(txt, kind) as StyledElement<*> }.toTypedArray()
         val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
-            .map { text(it).fg(Color.CYAN) as StyledElement<*> }.toTypedArray()
+            .map { (txt, kind) -> traceText(txt, kind) as StyledElement<*> }.toTypedArray()
         chatListElement.elements(*chatItems)
         traceListElement.elements(*traceItems)
 
@@ -122,7 +142,7 @@ class JclawTui(
                     .onSubmit(Runnable {
                         val line = promptInput.text()
                         if (line.isNotBlank()) {
-                            chatLines.addAll(wrap("you: $line"))
+                            chatLines.addAll(wrap("you: $line").map { it to ChatKind.YOU })
                             onSubmit(line)
                             promptInput.clear()
                         }

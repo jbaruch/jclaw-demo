@@ -10,7 +10,9 @@ import ai.koog.prompt.executor.clients.anthropic.AnthropicLLMClient
 import ai.koog.prompt.executor.clients.anthropic.AnthropicModels
 import ai.koog.prompt.executor.clients.openai.OpenAILLMClient
 import ai.koog.prompt.executor.llms.MultiLLMPromptExecutor
+import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
+import com.jbaruch.jclaw.tui.TraceKind
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 
@@ -55,7 +57,7 @@ fun main(args: Array<String>) {
             // Local tools: askBaruch / awaitReaction pipe to the TUI's chat pane,
             // reactions are pulled from the shared submissions channel.
             val userTools = UserTools(
-                outbound = tui::chat,
+                outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
                 reactions = submissions,
             )
             val readTools = ReadTools(priorDeclines = SeedMemory.priorDeclines)
@@ -100,19 +102,21 @@ fun main(args: Array<String>) {
             ) {
                 handleEvents {
                     onSubgraphExecutionStarting { ctx ->
-                        tui.trace("┌─ ▶ ${ctx.subgraph.name}")
+                        tui.trace("┌─ ▶ ${ctx.subgraph.name}", TraceKind.SUBGRAPH_START)
                     }
                     onSubgraphExecutionCompleted { ctx ->
                         val output = ctx.output?.toString()?.let {
                             if (it.length > 200) it.take(200) + "…" else it
                         }
-                        tui.trace("└─ ✓ ${ctx.subgraph.name}  →  $output")
+                        tui.trace("└─ ✓ ${ctx.subgraph.name}  →  $output", TraceKind.SUBGRAPH_END)
                     }
                     onToolCallStarting { ctx ->
-                        tui.trace("   ↪ ${ctx.toolName}(${ctx.toolArgs})")
+                        tui.trace("   ↪ ${ctx.toolName}(${ctx.toolArgs})", TraceKind.TOOL_CALL)
                     }
                     onToolCallCompleted { ctx ->
-                        formatToolForChat(ctx.toolName, ctx.toolArgs.toString(), ctx.toolResult.toString())?.let { tui.chat(it) }
+                        formatToolForChat(ctx.toolName, ctx.toolArgs.toString(), ctx.toolResult.toString())?.let {
+                            tui.chat(it, ChatKind.TOOL_RESULT)
+                        }
                     }
                     onLLMCallStarting { _ -> tui.startBusy() }
                     onLLMCallCompleted { _ -> tui.stopBusy() }
@@ -123,20 +127,21 @@ fun main(args: Array<String>) {
             tui.chat(
                 "j-claw: Good evening, sir. The hour grows civil and your calendar grows uncivil. " +
                     "From which obligation are we to engineer your gracious extraction tonight — " +
-                    "with grace, with conviction, and with the absolute minimum of perjury?"
+                    "with grace, with conviction, and with the absolute minimum of perjury?",
+                ChatKind.JCLAW,
             )
             val initial = if (args.isNotEmpty()) args.joinToString(" ") else submissions.receive()
             if (args.isNotEmpty()) {
                 // Auto-fire path also surfaces the implicit input in CHAT.
-                tui.chat("you: $initial")
+                tui.chat("you: $initial", ChatKind.YOU)
             }
 
             try {
                 val result = agent.run(initial)
-                tui.chat("j-claw: ✓ done — flavor ${result.flavor}")
-                tui.chat("j-claw: message → ${result.messageToOrganizer}")
+                tui.chat("j-claw: ✓ done — flavor ${result.flavor}", ChatKind.OK)
+                tui.chat("j-claw: message → ${result.messageToOrganizer}", ChatKind.JCLAW)
             } catch (t: Throwable) {
-                tui.chat("✘ ${t.message ?: t.javaClass.simpleName}")
+                tui.chat("✘ ${t.message ?: t.javaClass.simpleName}", ChatKind.ERR)
             }
         }
     }.apply { isDaemon = true; name = "jclaw-agent" }.start()
