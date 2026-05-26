@@ -8,9 +8,10 @@ import dev.tamboui.toolkit.Toolkit.panel
 import dev.tamboui.toolkit.Toolkit.row
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
-import dev.tamboui.toolkit.element.StyledElement
 import dev.tamboui.toolkit.app.ToolkitApp
 import dev.tamboui.toolkit.element.Element
+import dev.tamboui.toolkit.element.StyledElement
+import dev.tamboui.tui.TuiConfig
 import dev.tamboui.widgets.input.TextInputState
 
 /**
@@ -40,6 +41,9 @@ class JclawTui(
     // Spinner state — refcounted so overlapping LLM calls don't clear too early.
     private var busyDepth: Int = 0
     private var statusText: String? = null
+
+    /** Enable mouse capture so ListElement gets SCROLL_UP / SCROLL_DOWN wheel events. */
+    override fun configure(): TuiConfig = TuiConfig.builder().mouseCapture(true).build()
 
     fun chat(line: String) {
         val rows = wrap(line)
