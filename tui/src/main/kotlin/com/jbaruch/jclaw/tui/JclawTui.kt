@@ -12,6 +12,7 @@ import dev.tamboui.toolkit.Toolkit.textInput
 import dev.tamboui.toolkit.app.ToolkitApp
 import dev.tamboui.toolkit.element.Element
 import dev.tamboui.toolkit.element.StyledElement
+import dev.tamboui.toolkit.elements.ListElement
 import dev.tamboui.tui.TuiConfig
 import dev.tamboui.widgets.input.TextInputState
 
@@ -38,6 +39,20 @@ class JclawTui(
     private val chatLines: MutableList<String> = mutableListOf()
     private val traceLines: MutableList<String> = mutableListOf()
     private val promptInput = TextInputState()
+
+    // Persistent ListElement instances. ListElement holds its scroll position
+    // (and "user-scrolled-away" flag) in a private final ListState field —
+    // building a fresh ListElement every render frame wipes the user's manual
+    // scroll. Keeping the SAME instance across renders and just updating its
+    // items via .elements(...) preserves the scroll state.
+    private val chatListElement: ListElement<*> = list()
+        .stickyScroll().scrollbar()
+        .selected(-1).highlightSymbol("").highlightStyle(Style.EMPTY)
+        .id(CHAT_ID).focusable()
+    private val traceListElement: ListElement<*> = list()
+        .stickyScroll().scrollbar()
+        .selected(-1).highlightSymbol("").highlightStyle(Style.EMPTY)
+        .id(TRACE_ID).focusable()
 
     // Spinner state — refcounted so overlapping LLM calls don't clear too early.
     private var busyDepth: Int = 0
@@ -78,14 +93,14 @@ class JclawTui(
     }
 
     override fun render(): Element {
-        // Pre-wrap stores already-sized rows, so each list item is one
-        // already-wrapped row. ListElement.stickyScroll() keeps the view
-        // pinned to the most recent line as new content arrives; scrollbar()
-        // shows a visible track so the audience knows there's more above.
+        // Update the persistent lists' items each frame WITHOUT rebuilding the
+        // list elements themselves — that keeps the user's scroll position alive.
         val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
             .map { text(it) as StyledElement<*> }.toTypedArray()
         val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
             .map { text(it).fg(Color.CYAN) as StyledElement<*> }.toTypedArray()
+        chatListElement.elements(*chatItems)
+        traceListElement.elements(*traceItems)
 
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
             ?: text(" ")
@@ -96,26 +111,10 @@ class JclawTui(
             if (id == focusedId) Color.GREEN else Color.GRAY
 
         return column(
-            panel("CHAT",
-                list(*chatItems)
-                    .stickyScroll()
-                    .scrollbar()
-                    .selected(-1)                 // no item selected by default
-                    .highlightSymbol("")          // no "> " prefix on the selected row
-                    .highlightStyle(Style.EMPTY)  // no inverted-color highlight band
-                    .id(CHAT_ID)
-                    .focusable()
-            ).rounded().borderColor(borderFor(CHAT_ID)).constraint(Constraint.fill()),
-            panel("TRACE",
-                list(*traceItems)
-                    .stickyScroll()
-                    .scrollbar()
-                    .selected(-1)
-                    .highlightSymbol("")
-                    .highlightStyle(Style.EMPTY)
-                    .id(TRACE_ID)
-                    .focusable()
-            ).rounded().borderColor(borderFor(TRACE_ID)).constraint(Constraint.fill()),
+            panel("CHAT", chatListElement)
+                .rounded().borderColor(borderFor(CHAT_ID)).constraint(Constraint.fill()),
+            panel("TRACE", traceListElement)
+                .rounded().borderColor(borderFor(TRACE_ID)).constraint(Constraint.fill()),
             row(statusLine).constraint(Constraint.length(1)),
             panel("PROMPT",
                 textInput(promptInput)
