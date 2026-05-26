@@ -18,7 +18,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 
 /**
- * j-claw — Round 4 (full pipeline) entry point with TamboUI three-pane TUI.
+ * j-claw — Round 3 (tools + MCP + memory, no pipeline yet) entry point.
  *
  * Layout:
  *   - Two mock MCP servers (conference-mcp, contacts-mcp) launched as subprocesses
@@ -26,12 +26,9 @@ import kotlinx.coroutines.runBlocking
  *     plus a local UserTools for asking Baruch and awaiting his y/n reactions
  *   - Real Koog ChatMemory pre-seeded with prior-decline conversation turns
  *     (via SeedMemoryProvider — no searchPriorExcuses tool needed)
- *   - Four-phase strategy from Strategy.kt
+ *   - NO strategy — the agent reasons freely over the available tools. The
+ *     four-phase typed pipeline arrives in Round 4.
  *   - TamboUI TUI: CHAT / TRACE / STATUS / PROMPT
- *
- * The TUI runs on the main thread (blocking). A daemon thread drives the agent —
- * peeling the first PROMPT submission as the agent's input, leaving subsequent
- * submissions for UserTools' reactions channel.
  *
  * Required env: OPENAI_API_KEY, ANTHROPIC_API_KEY.
  */
@@ -74,31 +71,30 @@ fun main(args: Array<String>) {
                 AnthropicLLMClient(anthropicKey),
             )
 
-            // Tool slices: conference-mcp is read-only; contacts splits read / write.
-            val confRead     = conferenceRegistry.tools
-            val contactsRead = contactsRegistry.tools.filter { it.descriptor.name == "getContactSensitivity" }
-            val contactsWrt  = contactsRegistry.tools.filter { it.descriptor.name == "sendDecline" }
-
-            val strategy = buildJclawStrategy(
-                userTools  = userTools.asTools(),
-                readTools  = confRead + contactsRead,
-                writeTools = contactsWrt,
-            )
-
             val agent = AIAgent(
                 promptExecutor = executor,
                 llmModel = AnthropicModels.Sonnet_4_5,
                 toolRegistry = toolRegistry,
                 systemPrompt = """
-                    You are j-claw. You help Baruch decline speaker dinners. Don't be fooled by
-                    the rocks that he's got — he's still Baruch from the block, and he doesn't
-                    want to go.
+                    Today's date: 2026-05-26. You are j-claw. You help Baruch decline speaker
+                    dinners. Don't be fooled by the rocks that he's got — he's still Baruch
+                    from the block, and he doesn't want to go.
 
-                    When picking BARUCH_CLASSIC flavor, the messageToOrganizer must contain the
-                    exact sentence "I have to go take care of Jenny." — that's the whole point
-                    of the flavor.
+                    When Baruch asks you to decline something, use the tools: read his
+                    calendar, see who else is going, check how the organizer takes a no, then
+                    send the decline. Don't narrate the plan; just do it, and write ONE short
+                    summary line once the decline has actually gone out.
+
+                    About your memory: the prior decline turns already loaded into this
+                    context are HISTORICAL records from past events — each is tagged with a
+                    date in square brackets at the start, e.g. [2025-06-19]. They are NOT
+                    today's task. DO NOT reuse a flavor that already appears in those past
+                    declines; pick a fresh one.
+
+                    For follow-up questions and small talk, just answer — don't redo the
+                    workflow. If Baruch asks about something not in your memory or tools, say
+                    so plainly.
                 """.trimIndent(),
-                strategy = strategy,
                 maxIterations = 200,
             ) {
                 install(ChatMemory) {
@@ -108,15 +104,6 @@ fun main(args: Array<String>) {
                     )
                 }
                 handleEvents {
-                    onSubgraphExecutionStarting { ctx ->
-                        tui.trace("┌─ ▶ ${ctx.subgraph.name}", TraceKind.SUBGRAPH_START)
-                    }
-                    onSubgraphExecutionCompleted { ctx ->
-                        val output = ctx.output?.toString()?.let {
-                            if (it.length > 200) it.take(200) + "…" else it
-                        }
-                        tui.trace("└─ ✓ ${ctx.subgraph.name}  →  $output", TraceKind.SUBGRAPH_END)
-                    }
                     onToolCallStarting { ctx ->
                         tui.trace("   ↪ ${ctx.toolName}(${ctx.toolArgs})", TraceKind.TOOL_CALL)
                     }
@@ -130,15 +117,15 @@ fun main(args: Array<String>) {
                 }
             }
 
-            // Greet, then wait for the initial user message.
+            // Greet, then loop: every PROMPT submission is a fresh agent.run(). No history
+            // is carried between turns — ChatMemory loads the pre-seeded prior declines on
+            // each call, but the current run's turns aren't persisted.
             tui.chat(
                 "j-claw: At your service, sir. Shall we engineer a gracious extraction " +
                     "from some obligation — or is there other business?",
                 ChatKind.OK,
             )
-            // Loop: every PROMPT submission is a fresh agent.run(). The classify subgraph
-            // routes each prompt to either the decline pipeline or a chat reply, so the
-            // agent stays alive for follow-ups instead of dying after a single decline.
+
             var next: String? = if (args.isNotEmpty()) args.joinToString(" ") else null
             if (next != null) {
                 tui.chat("you: $next", ChatKind.YOU)
@@ -148,16 +135,8 @@ fun main(args: Array<String>) {
                 val prompt = next ?: submissions.receive()
                 next = null
                 try {
-                    when (val result = agent.run(prompt)) {
-                        is JclawResult.DeclineSent -> {
-                            val d = result.deployment
-                            tui.chat("j-claw: ✓ done — flavor ${d.flavor}", ChatKind.OK)
-                            tui.chat("j-claw: message → ${d.messageToOrganizer}", ChatKind.JCLAW)
-                        }
-                        is JclawResult.ChatReply -> {
-                            tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
-                        }
-                    }
+                    val result = agent.run(prompt)
+                    tui.chat("j-claw: $result", ChatKind.JCLAW)
                 } catch (t: Throwable) {
                     tui.chat("✘ ${t.message ?: t.javaClass.simpleName}", ChatKind.ERR)
                 }
