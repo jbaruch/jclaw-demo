@@ -99,11 +99,15 @@ class JclawTui(
     }
 
     private fun chatText(line: String, kind: ChatKind): StyledElement<*> = when (kind) {
-        ChatKind.JCLAW       -> text(line)                              // default — easy to read at length
-        ChatKind.YOU         -> text(line).fg(Color.GREEN).bold()       // user input pops
-        ChatKind.TOOL_RESULT -> text(line).fg(Color.YELLOW)             // data the agent learned
-        ChatKind.OK          -> text(line).fg(Color.GREEN).bold()       // final success
-        ChatKind.ERR         -> text(line).fg(Color.RED).bold()         // errors
+        // CHAT panel — three roles, three colors:
+        //   j-claw external (greeting + free-form replies)  → blue bold      (JCLAW, OK)
+        //   j-claw internal thinking (tool-result echoes)   → yellow         (TOOL_RESULT)
+        //   you                                             → green bold     (YOU)
+        ChatKind.JCLAW       -> text(line).fg(Color.BLUE).bold()
+        ChatKind.OK          -> text(line).fg(Color.BLUE).bold()
+        ChatKind.YOU         -> text(line).fg(Color.GREEN).bold()
+        ChatKind.TOOL_RESULT -> text(line).fg(Color.YELLOW)
+        ChatKind.ERR         -> text(line).fg(Color.RED).bold()
     }
 
     private fun traceText(line: String, kind: TraceKind): StyledElement<*> = when (kind) {
