@@ -46,6 +46,11 @@ class JclawTui(
     /** Enable mouse capture so ListElement gets SCROLL_UP / SCROLL_DOWN wheel events. */
     override fun configure(): TuiConfig = TuiConfig.builder().mouseCapture(true).build()
 
+    /** Start with focus on the prompt input so keystrokes go there, not into a list. */
+    override fun onStart() {
+        runner()?.focusManager()?.setFocus(PROMPT_ID)
+    }
+
     fun chat(line: String) {
         val rows = wrap(line)
         runner()?.runOnRenderThread { chatLines.addAll(rows) }
@@ -118,12 +123,15 @@ class JclawTui(
                             promptInput.clear()
                         }
                     })
+                    .id(PROMPT_ID)
+                    .focusable()
             ).rounded().constraint(Constraint.length(3)),
         )
     }
 
     companion object {
         private const val MAX_LINES = 400
+        private const val PROMPT_ID = "jclaw-prompt"
 
         /** Wrap width in columns. Override with JCLAW_WRAP env var (floor 20). */
         private val WRAP: Int = (System.getenv("JCLAW_WRAP")?.toIntOrNull() ?: 88).coerceAtLeast(20)
