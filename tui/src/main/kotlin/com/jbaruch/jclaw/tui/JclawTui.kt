@@ -90,6 +90,11 @@ class JclawTui(
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
             ?: text(" ")
 
+        // Which element currently has keyboard focus — used to mark the active panel.
+        val focusedId: String? = runner()?.focusManager()?.focusedId()
+        fun borderFor(id: String): Color =
+            if (id == focusedId) Color.GREEN else Color.GRAY
+
         return column(
             panel("CHAT",
                 list(*chatItems)
@@ -98,9 +103,9 @@ class JclawTui(
                     .selected(-1)                 // no item selected by default
                     .highlightSymbol("")          // no "> " prefix on the selected row
                     .highlightStyle(Style.EMPTY)  // no inverted-color highlight band
-                    .id("chat-list")              // required so focusable() actually registers
+                    .id(CHAT_ID)
                     .focusable()
-            ).rounded().constraint(Constraint.fill()),
+            ).rounded().borderColor(borderFor(CHAT_ID)).constraint(Constraint.fill()),
             panel("TRACE",
                 list(*traceItems)
                     .stickyScroll()
@@ -108,9 +113,9 @@ class JclawTui(
                     .selected(-1)
                     .highlightSymbol("")
                     .highlightStyle(Style.EMPTY)
-                    .id("trace-list")
+                    .id(TRACE_ID)
                     .focusable()
-            ).rounded().constraint(Constraint.fill()),
+            ).rounded().borderColor(borderFor(TRACE_ID)).constraint(Constraint.fill()),
             row(statusLine).constraint(Constraint.length(1)),
             panel("PROMPT",
                 textInput(promptInput)
@@ -125,12 +130,14 @@ class JclawTui(
                     })
                     .id(PROMPT_ID)
                     .focusable()
-            ).rounded().constraint(Constraint.length(3)),
+            ).rounded().borderColor(borderFor(PROMPT_ID)).constraint(Constraint.length(3)),
         )
     }
 
     companion object {
         private const val MAX_LINES = 400
+        private const val CHAT_ID = "chat-list"
+        private const val TRACE_ID = "trace-list"
         private const val PROMPT_ID = "jclaw-prompt"
 
         /** Wrap width in columns. Override with JCLAW_WRAP env var (floor 20). */
