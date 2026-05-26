@@ -5,6 +5,8 @@ import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.core.tools.reflect.asTools
 import ai.koog.agents.features.eventHandler.feature.handleEvents
+import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
+import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
 import ai.koog.agents.mcp.McpToolRegistryProvider
 import ai.koog.agents.mcp.fromProcess
 import ai.koog.prompt.executor.clients.anthropic.AnthropicLLMClient
@@ -106,6 +108,15 @@ fun main(args: Array<String>) {
                         onLoadTrace = { tui.trace(it, TraceKind.TOOL_CALL) },
                         onLoadChat  = { tui.chat(it, ChatKind.TOOL_RESULT) },
                     )
+                }
+                // Pipeline visualization — Koog ships an OpenTelemetry feature with a
+                // built-in Langfuse exporter. Spans for every subgraph (classify,
+                // identifyDecline, deployDecline, verifyDecline, refineDecline, chatReply),
+                // every tool call, and every LLM call show up as a nested trace tree at
+                // langfuse.com — the equivalent of LangChain4j-Agentic's System Report.
+                // Reads LANGFUSE_HOST / LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY env vars.
+                if (System.getenv("LANGFUSE_PUBLIC_KEY") != null) {
+                    install(OpenTelemetry) { addLangfuseExporter() }
                 }
                 handleEvents {
                     onSubgraphExecutionStarting { ctx ->

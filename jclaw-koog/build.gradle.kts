@@ -13,6 +13,7 @@ dependencies {
     implementation("ai.koog:agents-ext:1.0.0-beta")
     implementation("ai.koog:agents-features-memory:1.0.0")
     implementation("ai.koog:agents-features-event-handler:1.0.0")
+    implementation("ai.koog:agents-features-opentelemetry:1.0.0")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
