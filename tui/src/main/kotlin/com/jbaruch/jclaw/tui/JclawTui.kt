@@ -93,7 +93,8 @@ class JclawTui(
                     .selected(-1)                 // no item selected by default
                     .highlightSymbol("")          // no "> " prefix on the selected row
                     .highlightStyle(Style.EMPTY)  // no inverted-color highlight band
-                    .focusable()                  // route mouse-wheel events here
+                    .id("chat-list")              // required so focusable() actually registers
+                    .focusable()
             ).rounded().constraint(Constraint.fill()),
             panel("TRACE",
                 list(*traceItems)
@@ -102,6 +103,7 @@ class JclawTui(
                     .selected(-1)
                     .highlightSymbol("")
                     .highlightStyle(Style.EMPTY)
+                    .id("trace-list")
                     .focusable()
             ).rounded().constraint(Constraint.fill()),
             row(statusLine).constraint(Constraint.length(1)),
