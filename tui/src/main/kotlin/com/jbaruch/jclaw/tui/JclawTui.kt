@@ -4,7 +4,6 @@ import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
 import dev.tamboui.toolkit.Toolkit.column
 import dev.tamboui.toolkit.Toolkit.panel
-import dev.tamboui.toolkit.Toolkit.richTextArea
 import dev.tamboui.toolkit.Toolkit.row
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
@@ -21,6 +20,12 @@ import dev.tamboui.widgets.input.TextInputState
  *
  * Mutations from background threads marshal via runner().runOnRenderThread per the
  * `jbaruch/tamboui` tile's render-thread-discipline rule.
+ *
+ * Wrapping: chat/trace inputs are pre-wrapped into multiple rows of <= JCLAW_WRAP
+ * characters (default 88) BEFORE being added to the list. TamboUI's auto-wrap
+ * primitives don't reflow inside a column reliably, and they fall back to ellipsis
+ * truncation when they can't size a row. Pre-wrapping sidesteps the whole problem
+ * — each chat/trace row is a plain text() element of safe width.
  */
 class JclawTui(
     private val onSubmit: (String) -> Unit,
@@ -35,11 +40,13 @@ class JclawTui(
     private var statusText: String? = null
 
     fun chat(line: String) {
-        runner()?.runOnRenderThread { chatLines.add(line) }
+        val rows = wrap(line)
+        runner()?.runOnRenderThread { chatLines.addAll(rows) }
     }
 
     fun trace(line: String) {
-        runner()?.runOnRenderThread { traceLines.add(line) }
+        val rows = wrap(line)
+        runner()?.runOnRenderThread { traceLines.addAll(rows) }
     }
 
     /** Call when an LLM call starts. Rotates to a fresh ridiculous phrase. */
@@ -59,19 +66,14 @@ class JclawTui(
     }
 
     override fun render(): Element {
-        // richTextArea(...).wrapWord() — RichTextElement doesn't reflow height
-        // in column layouts; only RichTextArea computes wrapped height from
-        // available width, which is what makes long chat/trace lines actually
-        // flow across multiple rows instead of getting clipped.
-        // Trace uses bright cyan instead of .dim() because gray-on-white
-        // disappears on conference projectors.
+        // Pre-wrap stores already-sized rows, so plain text() per row is fine here.
         val chatChildren = chatLines.takeLast(MAX_LINES)
-            .map { richTextArea(it).wrapWord() as Element }.toTypedArray()
+            .map { text(it) as Element }.toTypedArray()
         val traceChildren = traceLines.takeLast(MAX_LINES)
-            .map { richTextArea(it).wrapWord().fg(Color.CYAN) as Element }.toTypedArray()
+            .map { text(it).fg(Color.CYAN) as Element }.toTypedArray()
 
         val statusLine: Element = statusText?.let { text(it).fg(Color.YELLOW).bold() }
-            ?: text(" ").dim()
+            ?: text(" ")
 
         return column(
             panel("CHAT", column(*chatChildren)).rounded()
@@ -85,7 +87,7 @@ class JclawTui(
                     .onSubmit(Runnable {
                         val line = promptInput.text()
                         if (line.isNotBlank()) {
-                            chatLines.add("you: $line")
+                            chatLines.addAll(wrap("you: $line"))
                             onSubmit(line)
                             promptInput.clear()
                         }
@@ -95,7 +97,52 @@ class JclawTui(
     }
 
     companion object {
-        private const val MAX_LINES = 200
+        private const val MAX_LINES = 400
+
+        /** Wrap width in columns. Override with JCLAW_WRAP env var (floor 20). */
+        private val WRAP: Int = (System.getenv("JCLAW_WRAP")?.toIntOrNull() ?: 88).coerceAtLeast(20)
+
+        /**
+         * Greedy word-wrap. Returns one or more rows, each at most [width] characters.
+         * Honors embedded newlines as paragraph breaks; normalizes \r and tabs.
+         * Hard-breaks single words longer than [width] so a runaway token can't overflow.
+         */
+        fun wrap(text: String, width: Int = WRAP): List<String> {
+            val normalized = text.replace("\r", "").replace("\t", "  ")
+            val paragraphs = normalized.split("\n")
+            val out = ArrayList<String>(paragraphs.size)
+
+            for (paragraph in paragraphs) {
+                if (paragraph.isEmpty()) {
+                    out.add("")
+                    continue
+                }
+                var current = StringBuilder()
+                for (rawWord in paragraph.split(" ")) {
+                    var remaining = rawWord
+                    // Hard-break anything longer than width.
+                    while (remaining.length > width) {
+                        if (current.isNotEmpty()) {
+                            out.add(current.toString())
+                            current = StringBuilder()
+                        }
+                        out.add(remaining.substring(0, width))
+                        remaining = remaining.substring(width)
+                    }
+                    if (remaining.isEmpty()) continue
+                    val needed = if (current.isEmpty()) remaining.length else current.length + 1 + remaining.length
+                    if (needed > width) {
+                        out.add(current.toString())
+                        current = StringBuilder(remaining)
+                    } else {
+                        if (current.isEmpty()) current.append(remaining)
+                        else current.append(' ').append(remaining)
+                    }
+                }
+                if (current.isNotEmpty()) out.add(current.toString())
+            }
+            return out
+        }
 
         // Ridiculous progress phrases — claw / J.Lo / arcade-flavored.
         private val PHRASES = listOf(
