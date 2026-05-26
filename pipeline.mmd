@@ -1,14 +1,16 @@
-%% j-claw pipeline — stage-friendly Mermaid diagram of the Round 4 strategy.
-%%
-%% Hand-curated to mirror Strategy.kt's buildJclawStrategy(). If you edit the
-%% strategy (add a subgraph, change a model, rewire an edge), keep this file in
-%% sync. Koog's strategy.asMermaidDiagram() auto-generates a low-level version
-%% that exposes every internal node — readable for debugging, unreadable on a
-%% projector. This file trades drift risk for clarity at stage scale.
-%%
-%% Usage: paste at https://mermaid.live, fullscreen, project. Or render offline:
-%%   npx -p @mermaid-js/mermaid-cli mmdc -i pipeline.mmd -o pipeline.png -w 2400 -H 1350
-
+---
+config:
+  theme: base
+  themeVariables:
+    background: '#fffaf0'
+    primaryColor: '#fffaf0'
+    primaryTextColor: '#1f2937'
+    primaryBorderColor: '#8b7355'
+    lineColor: '#6b5b3a'
+    secondaryColor: '#fafaf5'
+    tertiaryColor: '#fefce8'
+---
+%%{init: {'theme': 'base', 'themeVariables': {'background': '#fffaf0', 'primaryColor': '#fffaf0', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#8b7355', 'lineColor': '#6b5b3a'}}}%%
 flowchart TD
     Start([User prompt]) --> Classify
 
@@ -16,7 +18,7 @@ flowchart TD
     Classify -- "intent = DECLINE_REQUEST" --> Identify
     Classify -- "intent = CHAT" --> ChatReply
 
-    subgraph Decline pipeline
+    subgraph Pipeline [Decline pipeline]
         Identify["identifyDecline<br/>GPT-4o<br/>getCalendar, getEventAttendees"]
         Deploy["deployDecline<br/>Sonnet 4<br/>sendDecline"]
         Verify{"verifyDecline<br/>O3 · reasoning<br/>awaitReaction"}
@@ -32,7 +34,12 @@ flowchart TD
     ChatReply["chatReply<br/>Sonnet 4.5<br/>UserTools only"]
     ChatReply --> ChatDone([JclawResult.ChatReply])
 
-    classDef route fill:#fef3c7,stroke:#f59e0b,color:#92400e;
-    classDef terminal fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    classDef start fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
+    classDef route fill:#fef3c7,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
+    classDef terminal fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
+
+    class Start start;
     class Classify route;
     class DeclineSent,ChatDone terminal;
+
+    style Pipeline fill:#fafaf5,stroke:#9c8a5a,stroke-width:1px,color:#3f3f46;
