@@ -55,9 +55,12 @@ class ConferenceTools : ToolSet {
 
     // Real conference speakers — chosen so the agent has plausible names to reason about.
     private val cannedAttendees: Map<String, List<String>> = mapOf(
+        // Real JNation 2026 speakers per jnation.pt/speakers — picked for recognizability
+        // (Java Champions, frequent conference faces). Roberto Cortez is the organizer
+        // (already on the CalendarEvent), Baruch is the user, so neither appears here.
         "jnation-2026-dinner" to listOf(
-            "Viktor Gamov", "Venkat Subramaniam", "Holly Cummins", "Sebastian Daschner",
-            "Trisha Gee", "Marit van Dijk",
+            "Viktor Gamov", "Josh Long", "Heinz Kabutz", "Mario Fusco",
+            "Marit van Dijk", "Anton Arhipov",
         ),
         "jnation-2025-dinner" to listOf(
             "Viktor Gamov", "Yara Senger", "Otavio Santana",
