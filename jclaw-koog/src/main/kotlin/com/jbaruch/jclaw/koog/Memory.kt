@@ -22,9 +22,7 @@ class SeedMemoryProvider(
     private val onLoadChat: (String) -> Unit = {},
 ) : ChatHistoryProvider {
 
-    // Each turn is prefixed with its absolute date so the LLM doesn't confuse
-    // historical declines with the current run. Without the date prefix, the model
-    // tends to treat the most recent memory entry as "today's" decline.
+    // Each turn is date-tagged so the LLM doesn't confuse history with the current run.
     private val seed: List<Message> = listOf(
         userTurn("[2025-06-19] Decline JNation 2025 speaker dinner (organizer Roberto Cortez)."),
         assistantTurn("[2025-06-19] Done — JNation 2025 declined with the EMERGENCY_MEETING excuse to Roberto Cortez."),
