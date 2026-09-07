@@ -22,6 +22,16 @@ public enum class Intent { EXCUSE_REQUEST, CHAT }
  * prompts instead of exiting after one excuse.
  */
 public sealed interface JclawResult {
-    public data class ExcuseSent(val deployment: DeclineDeployment) : JclawResult
+    /**
+     * @param criticApproved false when the loop ran out of refinements and shipped the
+     *   last draft anyway. The distinction has to survive to the UI: a talk about
+     *   verification cannot print "the critic approved this" over a draft the critic
+     *   rejected three times.
+     */
+    public data class ExcuseSent(
+        val deployment: DeclineDeployment,
+        val criticApproved: Boolean,
+    ) : JclawResult
+
     public data class ChatReply(val text: String) : JclawResult
 }

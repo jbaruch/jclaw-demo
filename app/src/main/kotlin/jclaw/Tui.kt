@@ -111,8 +111,13 @@ fun main(): Unit {
                     tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
                     continue
                 }
-                val plan = (result as JclawResult.ExcuseSent).deployment
-                tui.chat("j-claw: ✓ critic approved — flavor ${plan.flavor}", ChatKind.OK)
+                val sent = result as JclawResult.ExcuseSent
+                val plan = sent.deployment
+                if (sent.criticApproved) {
+                    tui.chat("j-claw: ✓ critic approved — flavor ${plan.flavor}", ChatKind.OK)
+                } else {
+                    tui.chat("j-claw: ✘ critic never approved — last draft, flavor ${plan.flavor}", ChatKind.ERR)
+                }
                 tui.chat("j-claw: alibi staged → ${plan.fakeCalendarEventId}", ChatKind.TOOL_RESULT)
                 tui.chat("j-claw: ${plan.messageToOrganizer}", ChatKind.JCLAW)
                 tui.chat("j-claw: hallway script → ${plan.hallwayScript}", ChatKind.JCLAW)

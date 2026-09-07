@@ -125,9 +125,13 @@ fun main(): Unit = runBlocking {
             println("\nj-claw: ${result.text}")
             return@use
         }
-        val plan = (result as JclawResult.ExcuseSent).deployment
+        val sent = result as JclawResult.ExcuseSent
+        val plan = sent.deployment
 
-        println("\n=== THE CRITIC APPROVED THIS ===")
+        println(
+            if (sent.criticApproved) "\n=== THE CRITIC APPROVED THIS ==="
+            else "\n=== THE CRITIC NEVER APPROVED THIS - last draft, shipped on your call ==="
+        )
         println("flavor:  ${plan.flavor}")
         println("alibi:   ${plan.fakeCalendarEventId}")
         println("message: ${plan.messageToOrganizer}")

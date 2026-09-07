@@ -108,6 +108,18 @@ fun jclawStrategy(
             plan
         }
 
+        val approveUnverified by node<DeclineDeployment, DeclineDeployment> { plan ->
+            val verdict = userTools?.awaitApproval(
+                "CRITIC REJECTED THIS - flavor ${plan.flavor} - \"${plan.messageToOrganizer.take(80)}...\""
+            ) ?: "APPROVED"
+            if (!verdict.startsWith("APPROVED")) println("      you rejected it too: $verdict")
+            plan
+        }
+
+        // Both approval nodes exit the same way, whichever critic ran.
+        edge(approve forwardTo nodeFinish transformed { JclawResult.ExcuseSent(it, criticApproved = true) })
+        edge(approveUnverified forwardTo nodeFinish transformed { JclawResult.ExcuseSent(it, criticApproved = false) })
+
         edge(nodeStart forwardTo classify)
         edge(
             classify forwardTo identify
@@ -134,31 +146,33 @@ fun jclawStrategy(
                     onCondition { it.structuredResult?.approved != true && refusals.incrementAndGet() <= maxRefusals }
                     transformed { c -> "Tier: ${c.structuredResult?.tier}. ${c.structuredResult?.feedback ?: "critic returned nothing parseable"}" }
             )
+            // Out of retries. Still goes past a human - an unapproved draft is exactly
+            // the one someone should look at.
             edge(
-                verifyByClaude forwardTo nodeFinish
+                verifyByClaude forwardTo approveUnverified
                     onCondition { it.structuredResult?.approved != true }
                     transformed {
                         println("      claude still unhappy after $maxRefusals refinements - shipping last draft")
-                        JclawResult.ExcuseSent(lastPlan!!)
+                        lastPlan!!
                     }
             )
             edge(refine forwardTo verifyByClaude)
         } else {
         edge(deploy forwardTo verify)
         edge(verify forwardTo approve onCondition { it.successful } transformed { it.input })
-        edge(approve forwardTo nodeFinish transformed { JclawResult.ExcuseSent(it) })
         edge(
             verify forwardTo refine
                 onCondition { !it.successful && refusals.incrementAndGet() <= maxRefusals }
                 transformed { it.feedback }
         )
         // Out of retries: ship the last draft rather than loop forever, and say so.
+        // Out of retries. Still goes past a human.
         edge(
-            verify forwardTo nodeFinish
+            verify forwardTo approveUnverified
                 onCondition { !it.successful }
                 transformed {
                     println("      critic still unhappy after $maxRefusals refinements - shipping last draft")
-                    JclawResult.ExcuseSent(it.input)
+                    it.input
                 }
         )
         edge(refine forwardTo verify)
