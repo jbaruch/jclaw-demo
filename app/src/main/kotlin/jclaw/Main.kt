@@ -43,15 +43,18 @@ fun main(): Unit = runBlocking {
             }
         }
 
-        val task = """
-            Get me out of "${Scenario.EVENT_TITLE}" (event id ${Scenario.EVENT_ID}),
-            run by ${Scenario.ORGANIZER}.
-            Do not reuse an excuse I have already used on her.
-            Stage a calendar event that makes it hold up, then send the decline.
-        """.trimIndent()
+        println()
+        println("j-claw, with a memory this time. (blank line or ctrl-D to quit)")
+        println()
 
-        println("\n> $task\n")
-        println(jclaw.run(task))
+        while (true) {
+            print("you: ")
+            val line = readlnOrNull()?.trim()
+            if (line.isNullOrEmpty()) break
+            println()
+            println("j-claw: " + jclaw.run(line))
+            println()
+        }
     } finally {
         procs.forEach { it.destroyForcibly() }
         procs.forEach { runCatching { it.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) } }
