@@ -89,6 +89,11 @@ Each must be independently launchable — on stage they are run one at a time, i
 | 3 | Memory installed. Same prompt, and it stops reusing | ~40s |
 | 4 | Typed subtask pipeline with a critic and a refine loop | ~90s |
 
+Round 4 runs **three** times on Baruch's side inside its 21 minutes: the clean
+domain-modelled run (~90s), the naive run that fails and recovers (~2m), and an
+optional cross-vendor critic (~4m, the designated cut line). Parity is only required
+for the first two.
+
 Round 2 **must fail** in the specific way described: the agent picks an excuse already
 used on Dana. Do not prompt it away from that. The failure motivates round 3, and if
 your side succeeds where the Koog side fails, the bake-off has no spine.
@@ -138,6 +143,17 @@ poorer data.**
 This is where the talk's thesis becomes visible rather than asserted. It must work on
 your side too.
 
+## Optional: the cross-vendor critic (Baruch's side only, cuttable)
+
+`JCLAW_CRITIC=cli` swaps the critic from Gemini onto **Claude Code running on a local
+subscription**, via Koog 1.1.1's `CliAIAgent` — `apiKey = null` is what makes it use the
+login rather than a key. Gemini drafts, Claude judges, and what crosses between the two
+vendors is a typed data class.
+
+You do **not** need to build an equivalent. It is a cuttable flourish on one side, it
+costs ~4 minutes against ~90s, and nothing downstream depends on it. It is described
+here only so you know what is on screen if it runs.
+
 ## The ending
 
 The excuse the pipeline should land on is `ALREADY_PROFICIENT`: *"I build AI agents for
@@ -159,8 +175,8 @@ the talk directory, not here:
 <presentations>/IdeaConf/2026/Codepocalypse/outline.yaml source of truth
 ```
 
-18 slides, Neo-Tokyo arcade identity carried over from JNation. Four things that are
-not optional:
+**20 slides**, Neo-Tokyo arcade identity carried over from JNation. Five things that
+are not optional:
 
 - **Title must read** *"Codepocalypse Now: LangChain4j vs JetBrains Koog"* — that is
   the scheduled title, and LangChain4j is named first.
@@ -169,8 +185,15 @@ not optional:
   (encodes `jbaru.ch/ideaconf-2026-codepocalypse`). Do not generate a new one.
 - **Say the verdict lines out loud.** At JNation four thesis slides were never spoken
   aloud. `script.md` marks them `SAY IT`.
+- **Slides 16 and 17 are the eval beat and they are a pair.** 16 is a two-row high-score
+  board (MAY 25%→100%, 4× on top, greyed; SEPT 44%→77%, 1.75× below, bright) — the
+  argument is that the lift *shrank*. 17 replaces the score bars with token meters:
+  `BASELINE: 2.06× THE TOKENS. FOR THE WORSE ANSWER.` Both carry a source caption.
+  This is the most protected beat in the talk; do not merge them into one slide.
 
 There is no source `.pptx` — the JNation deck exists only as a PDF.
+
+Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 
 ## Verification before you call it done
 
@@ -190,3 +213,8 @@ There is no source `.pptx` — the JNation deck exists only as a PDF.
 2. LC4J memory equivalent, pointed at the same three seeded prior declines.
 3. A `VIKTOR_CLASSIC` flavor variant, or one shared enum?
 4. Which models per phase. Ours: Gemini 3.5 Flash drafts, Gemini 3.1 Pro reviews.
+5. Whether your side uses the shared `:tui` module. The TamboUI three-pane UI from the
+   JNation build is in this repo and compiles unchanged against tamboui 0.4.0 (now a
+   Central release, no longer a snapshot). Baruch's round 4 has both front ends:
+   `:round4-pipeline:run` (stdout) and `:round4-pipeline:runTui`. Visual parity across
+   the two sides matters more than which one you pick — pick the same one.
