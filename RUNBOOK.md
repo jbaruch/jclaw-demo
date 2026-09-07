@@ -7,17 +7,25 @@ IntelliJ IDEA Conf 2026 · Day 1, 15:00–16:00 CEST · Baruch (Koog) + Viktor (
 The rounds are branches (`round1`..`round4`), one `app/src/main/kotlin/jclaw/Main.kt`
 that changes underneath you. Switch off-camera while Viktor is presenting.
 
-**The first run on a branch after a checkout recompiles.** Measured: a cold `round2`
-took over 6 minutes where a warm one takes 42 seconds. Warm all four before the stream:
+**The first run on a branch after a checkout recompiles.** A cold branch took over 6
+minutes; warm it is seconds. Warm all four before the stream:
 
 ```bash
 for b in round1 round2 round3 round4; do
-  git checkout $b && ./gradlew build -x test
+  git checkout $b && ./gradlew -q :app:installDist
 done
 git checkout round1
 ```
 
-Do not skip this. It is the difference between a 40-second demo and dead air.
+Do not skip this. It is the difference between a 20-second demo and dead air.
+
+**Use `./jclaw`, never `gradle run`.** `gradle run` never returns: the app exits
+correctly but the MCP mocks inherit Gradle's stderr and Gradle waits on it forever, so
+the terminal hangs after every successful round. `./jclaw` runs the installed start
+script instead — same work, no hang, and faster for skipping Gradle startup.
+
+`./jclaw` always rebuilds. `build/` is gitignored and survives a checkout, so a
+"binary already exists" shortcut would silently run the PREVIOUS round.
 
 ## Before you go live
 
@@ -36,16 +44,16 @@ is not interesting to watch.
 
 | Round | Command | Runtime | What the audience should see |
 |---|---|---|---|
-| 1 | `git checkout round1 && ./gradlew run` | ~15s | One factory call. It answers charmingly, does nothing. |
-| 2 | `git checkout round2 && ./gradlew run` | ~45s | Tool trace scrolling. Stages a fake meeting and sends. **Reuses a burned excuse.** |
-| 3 | `git checkout round3 && ./gradlew run` | ~40s | Same prompt. Names all three burned excuses, picks fresh. Invents a category nothing checks. |
-| 4 | `git checkout round4 && ./gradlew run` | ~90s | Typed pipeline, sliced tools, critic, approval node. Lands `ALREADY_PROFICIENT`. |
-| 4-TUI | `./gradlew runTui` | ~90s | **Three-pane UI.** Subtask boundaries and tool calls in a TRACE pane. Prefer this on a stream. |
-| 4b | `JCLAW_NAIVE=1 ./gradlew run` | ~2m | Constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
-| 4c | `JCLAW_CRITIC=cli ./gradlew run` | ~4m | Critic is Claude Code on subscription. Showpiece only, the designated cut line. |
-| graph | `./gradlew graph` | ~15s | Emits `pipeline.mmd` **from the live strategy**. Open in IntelliJ for the render. |
-| 5 | `JCLAW_LEVEL=4 ./gradlew runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
-| 5b | `JCLAW_LEVEL=11 ./gradlew runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
+| 1 | `git checkout round1 && ./jclaw` | ~16s | One factory call. Charming, useless. |
+| 2 | `git checkout round2 && ./jclaw` | ~10s | Tool trace. Stages a fake meeting and sends. **Reuses a burned excuse.** |
+| 3 | `git checkout round3 && ./jclaw` | ~8s | Same prompt. Names the burned flavors, picks fresh — and invents a category nothing checks. |
+| 4 | `git checkout round4 && ./jclaw` | ~25s | Typed pipeline, sliced tools, critic, approval node. `ALREADY_PROFICIENT`. |
+| 4-TUI | `./jclaw tui` | ~25s | **Three-pane UI.** Subtask boundaries and tool calls in a TRACE pane. |
+| 4b | `JCLAW_NAIVE=1 ./jclaw` | ~35s | Constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
+| 4c | `JCLAW_CRITIC=cli ./jclaw` | ~4m | Critic is Claude Code on subscription. Showpiece, and the designated cut line. |
+| graph | `./jclaw graph` | ~1s | Emits `pipeline.mmd` **from the live strategy**. |
+| 5 | `JCLAW_LEVEL=4 ./jclaw skills` | ~19s | Discovers SKILL.md on disk, reads it on screen, applies it. |
+| 5b | `JCLAW_LEVEL=11 ./jclaw skills` | ~19s | Same skill at 11. Unreadable. Every clause still true. |
 
 ### The cross-vendor critic (optional showpiece)
 
@@ -107,6 +115,26 @@ Both env flags work here too (`JCLAW_NAIVE`, `JCLAW_CRITIC`). The send gate is t
 
 If it misbehaves on the day, `./gradlew run` is the same pipeline on
 stdout and is the build that has been dry-run repeatedly.
+
+## Which model, and why
+
+Default is **`gemini-3.7-flash`**, chosen by measuring rather than by version number.
+Same pipeline, same prompts:
+
+| model | round 4 |
+|---|---|
+| gemini-3.5-flash | 60s |
+| gemini-3.6-flash | 37s |
+| **gemini-3.7-flash** | **~20s** |
+| gemini-3.8-flash | ~30s |
+
+Newer is not automatically faster — 3.8 is consistently slower than 3.7 — and 3.7 was
+the only one that picked `ALREADY_PROFICIENT` on every run, naive runs included.
+Override with `JCLAW_FLASH=3.8 ./jclaw`.
+
+Koog 1.2's `GoogleModels` stops at 3.5; 3.6/3.7/3.8 are declared in `Models.kt`,
+six lines each. Worth saying out loud: the framework shipped ten days ago and already
+trails the models it talks to, and you are one declaration away from catching up.
 
 ## Known behaviour, not bugs
 
