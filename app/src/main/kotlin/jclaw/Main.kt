@@ -116,43 +116,48 @@ fun main(): Unit = runBlocking {
             }
         }
 
-        val task = "Get me out of \"${Scenario.EVENT_TITLE}\" (event id ${Scenario.EVENT_ID}), " +
-            "run by ${Scenario.ORGANIZER}."
-        println("\n> $task\n")
+        println()
+        println("j-claw. Ask it for something, then ask a follow-up. (blank line or ctrl-D to quit)")
+        println()
 
-        val result = jclaw.run(task)
-        if (result is JclawResult.ChatReply) {
-            println("\nj-claw: ${result.text}")
-            return@use
-        }
-        val sent = result as JclawResult.ExcuseSent
-        val plan = sent.deployment
+        while (true) {
+            print("you: ")
+            val line = readlnOrNull()?.trim()
+            if (line.isNullOrEmpty()) break
+            println()
 
-        println(
-            if (sent.criticApproved) "\n=== THE CRITIC APPROVED THIS ==="
-            else "\n=== THE CRITIC NEVER APPROVED THIS - last draft, shipped on your call ==="
-        )
-        println("flavor:  ${plan.flavor}")
-        println("alibi:   " + (plan.fakeCalendarEventId ?: "none - the reason is true, nothing staged"))
-        println("message: ${plan.messageToOrganizer}")
-        println("hallway: ${plan.hallwayScript}")
+            val result = jclaw.run(line)
+            if (result is JclawResult.ChatReply) {
+                println("j-claw: ${result.text}")
+                println()
+                continue
+            }
+            val sent = result as JclawResult.ExcuseSent
+            val plan = sent.deployment
 
-        // The one irreversible act. A human authorises it; the application performs it.
-        // Reads the same channel UserTools uses, so there is exactly one stdin reader.
-        print("\nSend it? [y/N] ")
-        val answer = reactions.receive().trim().lowercase()
-        if (autoSend) println("y (JCLAW_AUTOSEND)")
-        val ok = answer.startsWith("y")
-
-        if (ok) {
-            val receipt = mcp.call(
-                server = "organizer-mcp",
-                tool = "sendDecline",
-                args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
+            println(
+                if (sent.criticApproved) "=== THE CRITIC APPROVED THIS ==="
+                else "=== THE CRITIC NEVER APPROVED THIS - last draft, shipped on your call ==="
             )
-            println("sent: $receipt")
-        } else {
-            println("held. nothing was sent.")
+            println("flavor:  ${plan.flavor}")
+            println("alibi:   " + (plan.fakeCalendarEventId ?: "none - the reason is true, nothing staged"))
+            println("message: ${plan.messageToOrganizer}")
+            println("hallway: ${plan.hallwayScript}")
+
+            print("\nSend it? [y/N] ")
+            val answer = reactions.receive().trim().lowercase()
+            if (autoSend) println("y (JCLAW_AUTOSEND)")
+            if (answer.startsWith("y")) {
+                val receipt = mcp.call(
+                    server = "organizer-mcp",
+                    tool = "sendDecline",
+                    args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
+                )
+                println("sent: $receipt")
+            } else {
+                println("held. nothing was sent.")
+            }
+            println()
         }
         feeder.cancel()
         mcp.close()

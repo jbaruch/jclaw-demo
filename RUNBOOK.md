@@ -54,18 +54,19 @@ is not interesting to watch.
 
 ## The four rounds
 
-| Round | Command | Runtime | What the audience should see |
+**Every round is a chat loop — you TYPE at it.** Blank line or ctrl-D quits.
+
+| Round | Command | Per turn | What to type, and what they should see |
 |---|---|---|---|
-| 1 | `git checkout round1 && ./jclaw` | ~16s | One factory call. Charming, useless. |
-| 2 | `git checkout round2 && ./jclaw` | ~10s | Tool trace. Stages a fake meeting and sends. **Reuses a burned excuse.** |
-| 3 | `git checkout round3 && ./jclaw` | ~8s | Same prompt. Names the burned flavors, picks fresh — and invents a category nothing checks. |
-| 4 | `git checkout round4 && ./jclaw` | ~25s | Typed pipeline, sliced tools, critic, approval node. `ALREADY_PROFICIENT`. |
-| 4-TUI | `./jclaw tui` | ~25s | **Three-pane UI.** Subtask boundaries and tool calls in a TRACE pane. |
-| 4b | `JCLAW_NAIVE=1 ./jclaw` | ~35s | Constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
-| 4c | `JCLAW_CRITIC=cli ./jclaw` | ~4m | Critic is Claude Code on subscription. Showpiece, and the designated cut line. |
-| graph | `./jclaw graph` | ~1s | Emits `pipeline.mmd` **from the live strategy**. |
-| 5 | `JCLAW_LEVEL=4 ./jclaw skills` | ~19s | Discovers SKILL.md on disk, reads it on screen, applies it. |
-| 5b | `JCLAW_LEVEL=11 ./jclaw skills` | ~19s | Same skill at 11. Unreadable. Every clause still true. |
+| 1 | `git checkout round1 && ./jclaw` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
+| 2 | `git checkout round2 && ./jclaw` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
+| 3 | `git checkout round3 && ./jclaw` | ~9s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. |
+| 4 | `git checkout round4 && ./jclaw` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
+| 4-TUI | `./jclaw tui` | ~20s | Three-pane UI. Agent asks in CHAT, you answer in PROMPT. |
+| 4b | `JCLAW_NAIVE=1 ./jclaw` | ~40s | Constraint stripped. Reaches for a burned excuse. Critic catches it. |
+| 4c | `JCLAW_CRITIC=cli ./jclaw` | ~2-3m | Critic is Claude on subscription. Rejects the fabrication, argues the truth is the stronger play. Cut line. |
+| graph | `./jclaw graph` | ~1s | `pipeline.mmd` from the live strategy. |
+| 5 | `JCLAW_LEVEL=4 ./jclaw skills` / `11` | ~19s | SKILL.md read off disk and applied. |
 
 ### The cross-vendor critic (optional showpiece)
 
