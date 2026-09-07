@@ -3,7 +3,6 @@ package jclaw
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
-import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
 import kotlin.system.exitProcess
 
@@ -20,6 +19,11 @@ import kotlin.system.exitProcess
  * reaches for the most natural excuse in the world - and it is the same one
  * he has already used on her twice.
  */
+/** A persona. The task arrives in the message, which is where tasks come from. */
+private const val PERSONA: String =
+    "You are j-claw, Baruch's personal assistant. Don't be fooled by the rocks that " +
+        "he got - he's still Baruch from the block. Be brief, be warm, be useful."
+
 fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val (tools, procs) = Mcp.registry("calendar-mcp", "organizer-mcp")
@@ -29,7 +33,7 @@ fun main(): Unit = runBlocking {
 
         val jclaw = AIAgent(
             promptExecutor = simpleGoogleAIExecutor(apiKey),
-            systemPrompt = Scenario.SYSTEM_PROMPT,
+            systemPrompt = PERSONA,
             llmModel = Models.flash,
             toolRegistry = tools,
         ) {
