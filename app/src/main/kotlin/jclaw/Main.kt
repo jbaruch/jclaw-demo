@@ -2,7 +2,6 @@ package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
-import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -19,6 +18,11 @@ import kotlinx.coroutines.runBlocking
  *   - it does not remember. Every turn starts from nothing, so ask it what you
  *     just said and watch it not know.
  */
+/** A persona. The task arrives in the message, which is where tasks come from. */
+private const val PERSONA: String =
+    "You are j-claw, Baruch's personal assistant. Don't be fooled by the rocks that " +
+        "he got - he's still Baruch from the block. Be brief, be warm, be useful."
+
 fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) {
         "GOOGLE_API_KEY is not set"
@@ -26,7 +30,7 @@ fun main(): Unit = runBlocking {
 
     val jclaw = AIAgent(
         promptExecutor = simpleGoogleAIExecutor(apiKey),
-        systemPrompt = Scenario.SYSTEM_PROMPT,
+        systemPrompt = PERSONA,
         llmModel = Models.flash,
     )
 
