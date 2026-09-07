@@ -13,6 +13,8 @@ import kotlin.system.exitProcess
  * The agent can now act: it reads the calendar, checks how touchy the
  * organizer is, stages a backing event, and sends the decline for real.
  *
+ * Talk to it. Ask it to get you out of the training, then ask it something else.
+ *
  * What it CANNOT do is remember. The calendar records that Baruch bailed on
  * three sessions; it does not record what he told Dana each time. So j-claw
  * reaches for the most natural excuse in the world - and it is the same one
@@ -36,15 +38,18 @@ fun main(): Unit = runBlocking {
             }
         }
 
-        val task = """
-            Get me out of "${Scenario.EVENT_TITLE}" (event id ${Scenario.EVENT_ID}),
-            run by ${Scenario.ORGANIZER}.
-            Stage a calendar event that makes the excuse hold up, then send the decline.
-            Tell me what you sent and what I should say if Dana asks me about it tomorrow.
-        """.trimIndent()
+        println()
+        println("j-claw. Ask it for something. (blank line or ctrl-D to quit)")
+        println()
 
-        println("\n> $task\n")
-        println(jclaw.run(task))
+        while (true) {
+            print("you: ")
+            val line = readlnOrNull()?.trim()
+            if (line.isNullOrEmpty()) break
+            println()
+            println("j-claw: " + jclaw.run(line))
+            println()
+        }
     } finally {
         procs.forEach { it.destroyForcibly() }
         procs.forEach { runCatching { it.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) } }
