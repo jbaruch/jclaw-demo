@@ -2,6 +2,8 @@
 # Stage launcher.
 #
 #   ./jclaw 1        round 1 - switches branch silently, seeds the clipboard, runs
+#                    (round 1 follow-ups, typed by hand: "ok, not bad! Let's tweak it
+#                     a bit." then "what did I just ask you about?")
 #   ./jclaw 2|3|4    same for the other rounds
 #   ./jclaw          re-run whatever round is checked out
 #   ./jclaw tui      round 4 in the three-pane UI          (round4 only)
@@ -26,20 +28,19 @@ fi
 
 ASK="Get me out of the Basic AI Proficiency Training on Tuesday, run by Dana from People Ops. Don't reuse an excuse I've already used on her."
 
-seed() {   # $1 = round number
-  local text
-  case "$1" in
-    1) text="ok, not bad! Let's tweak it a bit." ;;   # say this FIRST, with no history
-    *) text="$ASK" ;;
-  esac
-  if command -v pbcopy >/dev/null 2>&1; then printf '%s' "$text" | pbcopy; fi
+# Every round opens with the SAME sentence. Identical input, four different
+# behaviours - that is the comparison, so it must not be retyped slightly differently.
+# Round 1's follow-ups ("let's tweak it a bit", then "what did I just ask you about?")
+# are typed by hand; the contradiction between those two answers is the beat.
+seed() {
+  if command -v pbcopy >/dev/null 2>&1; then printf '%s' "$ASK" | pbcopy; fi
 }
 
 case "${1:-run}" in
   1|2|3|4)
     git checkout -q "round$1" -- . 2>/dev/null || true
     git checkout -q "round$1" 2>/dev/null || true
-    seed "$1"
+    seed
     exec ./jclaw            # re-exec: this file may differ on the branch we just entered
     ;;
 esac
