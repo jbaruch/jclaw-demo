@@ -52,3 +52,19 @@ tasks.named<JavaExec>("run") {
     systemProperty("jclaw.mocks", rootProject.layout.projectDirectory.dir("mocks/build/libs").asFile.absolutePath)
     standardInput = System.`in`
 }
+
+// The application plugin scripts only mainClass. The demo has four entry points, and
+// on stage every one of them must run without Gradle in the loop.
+listOf(
+    "app-tui" to "jclaw.TuiKt",
+    "app-skills" to "jclaw.SkillsKt",
+    "app-graph" to "jclaw.GraphKt",
+).forEach { (scriptName, main) ->
+    val t = tasks.register<CreateStartScripts>("startScripts_$scriptName") {
+        applicationName = scriptName
+        mainClass.set(main)
+        outputDir = layout.buildDirectory.dir("scripts-$scriptName").get().asFile
+        classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
+    }
+    tasks.named<Sync>("installDist") { into("bin") { from(t) { fileMode = 493 } } }
+}

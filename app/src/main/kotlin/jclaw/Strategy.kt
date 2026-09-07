@@ -6,7 +6,6 @@ import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.agent.entity.AIAgentGraphStrategy
 import ai.koog.agents.ext.agent.subgraphWithTask
 import ai.koog.agents.ext.agent.subgraphWithVerification
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import jclaw.domain.DeclineDeployment
 import jclaw.domain.DeclineRequest
 import jclaw.domain.Scenario
@@ -44,7 +43,7 @@ fun jclawStrategy(
 
             val classify by subgraphWithTask<String, ClassifiedInput>(
                 tools = emptyList(),
-                llmModel = GoogleModels.Gemini3_5Flash,
+                llmModel = Models.flash,
             ) { input ->
                 "Decide whether Baruch wants out of an obligation (EXCUSE_REQUEST) or is " +
                     "just talking (CHAT). Echo his message verbatim into userMessage.\n$input"
@@ -52,13 +51,13 @@ fun jclawStrategy(
 
             val chatReply by subgraphWithTask<String, String>(
                 tools = slices.read,
-                llmModel = GoogleModels.Gemini3_5Flash,
+                llmModel = Models.flash,
             ) { input -> "Reply to Baruch, briefly and in character.\n$input" }
 
 
         val identify by subgraphWithTask<String, DeclineRequest>(
             tools = slices.read,
-            llmModel = GoogleModels.Gemini3_5Flash,
+            llmModel = Models.flash,
         ) { input ->
             if (naive) "Work out what Baruch is trying to get out of and who runs it.\n$input"
             else "Work out exactly what Baruch is trying to get out of, who runs it, who would " +
@@ -68,7 +67,7 @@ fun jclawStrategy(
 
         val deploy by subgraphWithTask<DeclineRequest, DeclineDeployment>(
             tools = slices.read + slices.write,
-            llmModel = GoogleModels.Gemini3_5Flash,
+            llmModel = Models.flash,
         ) { request ->
             "Pick the excuse flavor most likely to work, stage a calendar event that covers " +
                 "the session time, draft the message, and write the hallway script. " +
@@ -81,7 +80,7 @@ fun jclawStrategy(
 
         val verify by subgraphWithVerification<DeclineDeployment>(
             tools = slices.read,
-            llmModel = GoogleModels.Gemini3_1Pro_Preview,
+            llmModel = Models.pro,
         ) { deployment ->
             "You are a hostile reviewer. Reject this plan if the flavor is already burned, " +
                 "if the message does not actually match the flavor it claims, if the staged " +
@@ -94,7 +93,7 @@ fun jclawStrategy(
 
         val refine by subgraphWithTask<String, DeclineDeployment>(
             tools = slices.read + slices.write,
-            llmModel = GoogleModels.Gemini3_1Pro_Preview,
+            llmModel = Models.pro,
         ) { feedback ->
             "The reviewer rejected the plan. Fix exactly what they objected to, nothing else.\n$feedback"
         }

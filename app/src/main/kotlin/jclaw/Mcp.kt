@@ -27,16 +27,29 @@ class Mcp private constructor(
         return result?.toString() ?: "(no result)"
     }
 
+    /**
+     * Kills the child processes. Deliberately does NOT await `Client.close()`:
+     * Protocol.close() does not return once the transport is gone, and it blocks a
+     * thread rather than suspending, so even withTimeoutOrNull cannot get past it.
+     *
+     * The transport also leaves a non-daemon reader thread alive, so callers follow
+     * this with exitProcess. A CLI that finished its work must not hang the terminal.
+     */
     override fun close() {
-        procs.forEach { it.destroy() }
+        // destroyForcibly + waitFor, not destroy(): these children inherit our stderr
+        // (that is where the [calendar-mcp] trace lines come from). If we exit while
+        // they are still dying, they hold that pipe open and whoever owns it - Gradle -
+        // waits on it long after the demo finished.
+        procs.forEach { it.destroyForcibly() }
+        procs.forEach { runCatching { it.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) } }
     }
 
     companion object {
         private val javaBin = File(System.getProperty("java.home"), "bin/java").absolutePath
 
-        private val mocksDir: String = requireNotNull(System.getProperty("jclaw.mocks")) {
-            "jclaw.mocks system property is not set - launch via the Gradle run task"
-        }
+        /** Gradle passes this; the start script falls back to the repo layout. */
+        private val mocksDir: String =
+            System.getProperty("jclaw.mocks") ?: "mocks/build/libs"
 
         suspend fun boot(vararg servers: String): Mcp {
             val procs = mutableListOf<Process>()

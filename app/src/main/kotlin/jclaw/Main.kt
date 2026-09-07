@@ -12,7 +12,6 @@ import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExp
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import jclaw.domain.DeclineDeployment
 import jclaw.domain.DeclineRequest
@@ -21,6 +20,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.system.exitProcess
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -40,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * The send is deliberately NOT in the graph. It is the one irreversible act
  * here, so the application performs it, after a human says yes.
  */
-fun main() = runBlocking {
+fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     Mcp.boot("calendar-mcp", "organizer-mcp").use { mcp ->
@@ -87,7 +88,7 @@ fun main() = runBlocking {
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
                 prompt = Scenario.SYSTEM_PROMPT,
-                llm = GoogleModels.Gemini3_5Flash,
+                llm = Models.flash,
                 maxAgentIterations = 200,
             ),
             strategy = jclawStrategy,
@@ -150,5 +151,11 @@ fun main() = runBlocking {
             println("held. nothing was sent.")
         }
         feeder.cancel()
+        mcp.close()
+        // The MCP stdio transport leaves a non-daemon reader thread alive that survives
+        // both Client.close() and Process.destroy(), so the JVM will not exit on its own.
+        // This is a CLI that has finished its job; on stage a hung terminal after a
+        // successful run reads as a broken demo. Exit deliberately.
+        exitProcess(0)
     }
 }

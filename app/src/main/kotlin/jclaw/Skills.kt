@@ -5,7 +5,6 @@ import ai.koog.agents.core.tools.ToolRegistry
 import ai.koog.agents.ext.tool.file.ListDirectoryTool
 import ai.koog.agents.ext.tool.file.ReadFileTool
 import ai.koog.agents.features.eventHandler.feature.handleEvents
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.rag.base.files.JVMFileSystemProvider
 import ai.koog.skills.discovery.discoverSkills
@@ -24,11 +23,10 @@ import kotlinx.coroutines.runBlocking
  * The message j-claw's critic approved is honest and readable. That is a
  * problem, because it is going to People Ops.
  */
-fun main() = runBlocking {
+fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
-    val skillsRoot = requireNotNull(System.getProperty("jclaw.skills")) {
-        "jclaw.skills is not set - launch via: gradle :round4-pipeline:runSkills"
-    }
+    // Gradle passes this; the start script falls back to the repo layout.
+    val skillsRoot = java.io.File(System.getProperty("jclaw.skills") ?: "skills").absolutePath
 
     val discovered = discoverSkills(JVMFileSystemProvider.ReadOnly, listOf(skillsRoot))
     println("skills discovered: " + discovered.joinToString { it.name })
@@ -47,7 +45,7 @@ fun main() = runBlocking {
 
             $skillsPrompt
         """.trimIndent(),
-        llmModel = GoogleModels.Gemini3_1Pro_Preview,
+        llmModel = Models.pro,
         toolRegistry = ToolRegistry {
             tool(ListDirectoryTool(JVMFileSystemProvider.ReadOnly))
             tool(ReadFileTool(JVMFileSystemProvider.ReadOnly))

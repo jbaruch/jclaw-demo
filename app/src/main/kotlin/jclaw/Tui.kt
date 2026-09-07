@@ -8,7 +8,6 @@ import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExp
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
@@ -23,6 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.system.exitProcess
 
 /**
  * Round 4 with the three-pane terminal UI instead of scrolling stdout.
@@ -35,7 +35,7 @@ import kotlinx.coroutines.runBlocking
  * agent -> UI call marshals through the render thread inside JclawTui, per
  * the tamboui render-thread-discipline rule.
  */
-fun main() {
+fun main(): Unit {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val naive = System.getenv("JCLAW_NAIVE") == "1"
     val cliCritic = System.getenv("JCLAW_CRITIC") == "cli"
@@ -60,7 +60,7 @@ fun main() {
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
                 prompt = Scenario.SYSTEM_PROMPT,
-                llm = GoogleModels.Gemini3_5Flash,
+                llm = Models.flash,
                 maxAgentIterations = 200,
             ),
             strategy = jclawStrategy(mcp, naive, cliCritic, userTools),
@@ -141,5 +141,8 @@ fun main() {
         tui.run()
     } finally {
         agentScope.cancel()
+        // Same reason as the CLI front end: the MCP reader thread will not let the
+        // JVM exit once the TUI has been closed.
+        exitProcess(0)
     }
 }
