@@ -1,70 +1,68 @@
-# j-claw
+# j-claw — IntelliJ IDEA Conf 2026
 
-A personal AI agent that declines speaker dinner invitations. Built twice — once in **[Koog](https://github.com/JetBrains/koog)**, once in **[LangChain4j Agentic](https://github.com/langchain4j/langchain4j)** — for the JNation 2026 talk *"Codepocalypse Now (Age of Agents): Koog vs LangChain4J Agentic."*
+The Koog side of *Codepocalypse Now: LangChain4j vs JetBrains Koog*.
 
-Same domain, same mocks, same TUI, side-by-side on the projector. The point of the talk is that agentic Java is real now, regardless of which framework you pick.
+j-claw is a personal agent that gets you out of **Basic AI Proficiency Training
+(Mandatory)**, run by Dana from People Ops. It does not merely decline: it stages
+a calendar event to back the story up, calibrates to how much scrutiny Dana
+applies, and writes you a hallway script for when she asks about it tomorrow.
 
-## What's in this repo
+Built against **Koog 1.2.0**, released 2026-08-28.
 
-```
-jclaw-demo/
-├── SPEC.md              ← authoritative demo spec (mocks, types, pipeline, beat plan)
-├── mocks/
-│   ├── calendar-mcp/    ← stdio MCP server returning canned calendar events
-│   ├── organizer-mcp/   ← stdio MCP server logging decline messages
-│   └── memory.sqlite    ← pre-seeded chat-history database
-├── tui/                 ← shared TamboUI shell — chat / trace / prompt panes
-├── jclaw-koog/          ← Baruch's Koog implementation (4 progressive rounds)
-└── jclaw-lc4j/          ← Viktor's LangChain4j Agentic implementation (4 progressive rounds)
-```
+## Modules
 
-## The four rounds (git branches, not modules)
-
-`main` holds the full Round 4 state. Earlier rounds are **branches that strip features backward** — so each branch is self-contained and runnable, and on stage we just `git checkout` between them.
-
-| Branch | What it shows | Built by |
+| Branch | Round | What it adds |
 |---|---|---|
-| `round1-chatbot` | Basic `AIAgent(...)` one-liner — chatbot, no tools, no memory | stripping tools, MCP, memory, pipeline from main |
-| `round2-tools-mcp` | + sliced `ToolSet`s + mock MCP servers, no memory | stripping memory + pipeline from main |
-| `round3-memory` | + `ChatMemory` backed by `mocks/memory.sqlite` | stripping pipeline from main |
-| `main` (Round 4) | + domain-modeled subtask pipeline (`identifyExcuse` → `deployExcuse` → `verifyExcuse` → `refineExcuse`) with typed I/O and sliced tools per phase | this is the headline state |
+| `round1` | 1 | One `AIAgent(...)` factory call |
+| `round2` | 2 | Tool registry from two MCP servers. Acts — and reuses a burned excuse |
+| `round3` | 3 | Koog `LongTermMemory`, pre-seeded. Stops repeating itself |
+| `round4` | 4 | `subgraphWithTask` / `subgraphWithVerification`, tools sliced by capability, critic, approval node |
 
-Round 4 is the headline. The progressive structure exists so the audience can see what each capability adds; the branch-strip approach exists so we don't have to keep four module variants compilable in parallel.
+Every branch is the same `app` module with the same file at
+`app/src/main/kotlin/jclaw/Main.kt` — only its contents change, so on stage the code
+appears to evolve rather than being four prepared copies. Shared across all branches:
+`domain` (types), `mocks` (the two MCP servers), and on `round4` also `tui` and
+`skills/`.
 
-## Run
+## The argument
 
-Requires JDK 17+ and Gradle 8+. API keys for OpenAI and Anthropic via environment variables:
+Rounds 1–3 are one agent having one conversation. Round 4 is typed subtasks handing
+each other **data**:
+
+```
+                 +--> chatReply ------------------> ChatReply
+                 |
+start --> classify
+                 |
+                 +--> identify --> deploy --> verify --(approved)--> approve --> ExcuseSent
+                                                 ^         |
+                                                 +- refine +  (rejected, with feedback)
+```
+
+Three things the shape buys you, none of which are prompt engineering:
+
+1. **Tool slicing has consequences.** `deploy` has no communication tools at all, so
+   it cannot contact a human even if it decides to.
+2. **The critic is a different phase on a different model.** You do not let the model
+   that drafted the excuse decide whether the excuse is good.
+3. **Approval is a node, sending is not in the graph.** `approve` blocks on a real
+   human — not a tool the model may decide to skip — and only then does the
+   application call `sendDecline`.
+
+Set `JCLAW_NAIVE=1` to strip the typed constraint out of the handoff. Same pipeline,
+same models, same tools — poorer data. Watch it reach for an excuse it already used.
+
+## Running
 
 ```bash
-export OPENAI_API_KEY=...
-export ANTHROPIC_API_KEY=...
-
-# Koog side
-./gradlew :jclaw-koog:run
-
-# LC4J side
-./gradlew :jclaw-lc4j:run
-
-# Switch rounds (during talk dry-runs)
-git checkout round1-chatbot
-git checkout round2-tools-mcp
-git checkout round3-memory
-git checkout main             # = round 4 = headline
+git checkout round3 && ./jclaw      # any round
+./jclaw tui                         # round 4 in the three-pane UI
+./jclaw skills 11                   # corporate-speak at intensity 11
+./jclaw graph                       # pipeline.mmd, generated from the live strategy
 ```
 
-Both apps spawn the mock MCP servers locally — no network setup, no real Telegram, no real calendar. The TUI is a TamboUI terminal interface; type your prompt, watch the agent work.
+**Do not use `gradle run`** — it never returns. The app exits, the mocks exit, Gradle
+waits forever. `./jclaw` builds with Gradle and then runs the installed binary, which
+is what the JNation build did for the same reason.
 
-## Tessl tiles used
-
-- [`jbaruch/koog`](https://tessl.io/registry/jbaruch/koog) — Koog 1.0 idioms, gotchas, and skills (`domain-model-subtask-pipeline` is what this demo demonstrates)
-- [`jbaruch/tamboui`](https://tessl.io/registry/jbaruch/tamboui) — TamboUI rules for the TUI layer
-
-## License
-
-Apache 2.0 — see `LICENSE`.
-
-## The talk
-
-JNation 2026 · Aveiro, Portugal · 2026-05-26 · Baruch Sadogursky ([@jbaruch](https://twitter.com/jbaruch)) + Viktor Gamov ([@gamussa](https://twitter.com/gamussa))
-
-Shownotes: `speaking.jbaru.ch/codepocalypse-jnation-2026`
+See `RUNBOOK.md` for stage commands and timings.

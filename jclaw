@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stage launcher. Uses the installed start scripts, NOT `gradle run` - Gradle does not
+# return after the JVM exits when the MCP children have inherited its stderr, so the
+# terminal hangs after a successful demo. This also skips Gradle startup, so a round
+# runs in about 60s instead of 90.
+#
+#   ./jclaw            round 4, stdout
+#   ./jclaw tui        round 4, three-pane UI
+#   ./jclaw skills 11  corporate-speak at intensity 11
+#   ./jclaw graph      emit pipeline.mmd from the live strategy
+#   ./jclaw codex      probe: typed output from Codex, which Koog does not support
+#
+# Round 1-3 are branches: git checkout round2 && ./jclaw
+set -euo pipefail
+cd "$(dirname "$0")"
+
+# ALWAYS rebuild. build/ is gitignored, so it survives a checkout - guarding on
+# "does the binary exist" means switching branches and running this would launch
+# the PREVIOUS round. Gradle is up-to-date-fast, so this costs a couple of seconds.
+./gradlew -q :app:installDist :mocks:mcpJars
+
+case "${1:-run}" in
+  tui)    exec app/build/install/app/bin/app-tui ;;
+  skills) export JCLAW_LEVEL="${2:-11}"; exec app/build/install/app/bin/app-skills ;;
+  graph)  exec app/build/install/app/bin/app-graph ;;
+  codex)  exec app/build/install/app/bin/app-codex ;;
+  run|*)  exec app/build/install/app/bin/app ;;
+esac
