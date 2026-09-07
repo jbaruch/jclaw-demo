@@ -27,6 +27,13 @@ tasks.register<JavaExec>("runTui") {
     standardInput = System.`in`
 }
 
+/** Probe: does Codex return typed output? `./jclaw codex` */
+tasks.register<JavaExec>("codexProbe") {
+    group = "application"
+    mainClass.set("jclaw.TypedCodexProbeKt")
+    classpath = sourceSets.main.get().runtimeClasspath
+}
+
 /** Emit the pipeline diagram from the live strategy: `gradle :app:graph`. */
 tasks.register<JavaExec>("graph") {
     group = "application"
@@ -59,6 +66,7 @@ listOf(
     "app-tui" to "jclaw.TuiKt",
     "app-skills" to "jclaw.SkillsKt",
     "app-graph" to "jclaw.GraphKt",
+    "app-codex" to "jclaw.TypedCodexProbeKt",
 ).forEach { (scriptName, main) ->
     val t = tasks.register<CreateStartScripts>("startScripts_$scriptName") {
         applicationName = scriptName
