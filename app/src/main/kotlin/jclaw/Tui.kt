@@ -3,6 +3,8 @@ package jclaw
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.features.eventHandler.feature.handleEvents
+import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
+import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
@@ -44,6 +46,11 @@ fun main() {
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
         val mcp = Mcp.boot("calendar-mcp", "organizer-mcp")
+        // The agent talks to Baruch through the chat pane and blocks on the prompt pane.
+        val userTools = UserTools(
+            outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
+            reactions = submissions,
+        )
         val memory = InMemoryRecordStorage().apply { add(PriorExcuses.seed()) }
 
         tui.trace("mode: " + if (naive) "NAIVE — typed constraint stripped" else "DOMAIN-MODELLED", TraceKind.SUBGRAPH_START)
@@ -56,9 +63,20 @@ fun main() {
                 llm = GoogleModels.Gemini3_5Flash,
                 maxAgentIterations = 200,
             ),
-            strategy = jclawStrategy(mcp, naive, cliCritic),
+            strategy = jclawStrategy(mcp, naive, cliCritic, userTools),
             toolRegistry = mcp.registry,
         ) {
+
+            // Real traces, when there is somewhere to send them. Set LANGFUSE_HOST,
+            // LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY and every subtask, tool call
+            // and token count lands in Langfuse. Absent the keys this is a no-op, so
+            // the demo never depends on a network service being up.
+            if (System.getenv("LANGFUSE_PUBLIC_KEY") != null) {
+                install(OpenTelemetry) {
+                    setVerbose(true)
+                    addLangfuseExporter()
+                }
+            }
             if (!naive) install(LongTermMemory) {
                 retrieval {
                     storage = memory
@@ -88,7 +106,12 @@ fun main() {
             val prompt = next ?: submissions.receive()
             next = null
             try {
-                val plan = agent.run(prompt)
+                val result = agent.run(prompt)
+                if (result is JclawResult.ChatReply) {
+                    tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
+                    continue
+                }
+                val plan = (result as JclawResult.ExcuseSent).deployment
                 tui.chat("j-claw: ✓ critic approved — flavor ${plan.flavor}", ChatKind.OK)
                 tui.chat("j-claw: alibi staged → ${plan.fakeCalendarEventId}", ChatKind.TOOL_RESULT)
                 tui.chat("j-claw: ${plan.messageToOrganizer}", ChatKind.JCLAW)

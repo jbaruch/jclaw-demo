@@ -11,6 +11,7 @@ dependencies {
     implementation(libs.koog.agents.cli)
     implementation(libs.koog.skills)
     implementation(libs.koog.agents.ext)
+    implementation(libs.koog.otel)
     implementation(libs.kotlinx.coroutines)
 }
 

@@ -78,9 +78,21 @@ the memory round.
 
 Both servers log every call to **stderr**. Keep that visible on stage.
 
-### 3. Four rounds, four runnable entry points
+### 3. Four rounds, four BRANCHES
 
-Each must be independently launchable — on stage they are run one at a time, in order.
+**The Koog side is now branches, not modules.** One `app` module, one file at
+`app/src/main/kotlin/jclaw/Main.kt`, and branches `round1`..`round4` that change its
+contents. Baruch checks out off-camera while you are presenting, so the editor tab
+stays open and the code appears to evolve rather than being four prepared copies.
+
+```
+git checkout round3 && ./gradlew run
+```
+
+Structure your side however you like — but **warm every branch before the stream**.
+A cold first build after a checkout took over 6 minutes; warm it is 40 seconds.
+
+Each round must be independently launchable — on stage they run one at a time, in order.
 
 | Round | Must demonstrate | Target runtime |
 |---|---|---|
@@ -101,20 +113,40 @@ your side succeeds where the Koog side fails, the bake-off has no spine.
 ### 4. The pipeline shape (round 4)
 
 ```
-identify --> deploy --> verify --(approved)--> done
-               ^           |
-               +-- refine <+  (rejected, with feedback)
+                 +--> chatReply -----------------> ChatReply
+                 |
+start --> classify
+                 |
+                 +--> identify --> deploy --> verify --(approved)--> approve --> ExcuseSent
+                                                 ^         |
+                                                 +- refine +  (rejected, with feedback)
 ```
+
+`classify` routes each prompt to either the pipeline or a chat reply, so the agent
+survives follow-ups instead of exiting after one excuse. Both branches converge on a
+sealed `JclawResult` (`ExcuseSent` | `ChatReply`).
 
 | Phase | In → Out | Tools available |
 |---|---|---|
-| `identify` | `String` → `DeclineRequest` | read only |
-| `deploy` | `DeclineRequest` → `DeclineDeployment` | read + write, **no comms** |
-| `verify` | `DeclineDeployment` → critique | read only |
+| `classify` | `String` → `ClassifiedInput` | none |
+| `identify` | `String` → `DeclineRequest` | read |
+| `deploy` | `DeclineRequest` → `DeclineDeployment` | read + write, **no user, no comms** |
+| `verify` | `DeclineDeployment` → critique | read + **user** |
 | `refine` | feedback → `DeclineDeployment` | read + write |
+| `chatReply` | `String` → `String` | read |
 
-Read = `getCalendar`, `getOrganizerSensitivity`. Write = `createCalendarEvent`.
-Comms = `sendDecline`.
+**Four capability axes, not three:**
+
+- **read** — `getCalendar`, `getOrganizerSensitivity`. No side effects.
+- **write** — `createCalendarEvent`. Changes Baruch's world; nobody else sees it.
+- **user** — `askBaruch`, `pingBaruch`, `awaitApproval`. Reaches Baruch, interrupts him,
+  but nothing leaves the building.
+- **comms** — `sendDecline`. Reaches the organizer. Irreversible.
+
+The **user** axis is what makes the slicing argument land. `deploy` gets neither user
+nor comms tools, so it commits to a plan in total silence; `verify` is the phase that
+can surface and ask. Without a user-facing tool at all, "deploy cannot contact a human"
+is true and says nothing.
 
 Three constraints carry the argument. Keep all three:
 
@@ -122,9 +154,11 @@ Three constraints carry the argument. Keep all three:
    decides to. Enforced by the tool slice, not by asking nicely in a prompt.
 2. **The critic runs on a different model than the drafter.** Cheap model drafts,
    expensive model reviews.
-3. **Sending is NOT in the graph.** The agent returns a critic-approved plan; the
-   application calls `sendDecline` after a human confirms. The irreversible action is
-   never the model's call.
+3. **Approval is a node; sending is not in the graph.** After the critic approves, an
+   `approve` node calls `awaitApproval` and blocks on a real human — a node, not a tool
+   the model may or may not decide to call. Only then does the application call
+   `sendDecline`. The irreversible action is never the model's call, and the ping
+   always happens.
 
 **Bound the refine loop.** Ours stops after 2 refusals and ships the last draft. An
 unbounded critic is a hang, and we hit it.
@@ -153,6 +187,17 @@ vendors is a typed data class.
 You do **not** need to build an equivalent. It is a cuttable flourish on one side, it
 costs ~4 minutes against ~90s, and nothing downstream depends on it. It is described
 here only so you know what is on screen if it runs.
+
+## Optional on the Koog side: observability
+
+- `./gradlew graph` emits `pipeline.mmd` **from the live strategy object** via Koog's
+  `asMermaidDiagram()`. At JNation the diagram was hand-drawn and Baruch had to say so
+  on stage; this one cannot drift from the code.
+- Setting `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` / `LANGFUSE_HOST` installs the
+  OpenTelemetry feature with the Langfuse exporter. Absent the keys it is a no-op, so
+  the demo never depends on a network service.
+
+Neither is required for parity.
 
 ## The ending
 
@@ -216,5 +261,5 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 5. Whether your side uses the shared `:tui` module. The TamboUI three-pane UI from the
    JNation build is in this repo and compiles unchanged against tamboui 0.4.0 (now a
    Central release, no longer a snapshot). Baruch's round 4 has both front ends:
-   `:round4-pipeline:run` (stdout) and `:round4-pipeline:runTui`. Visual parity across
+   `./gradlew run` (stdout) and `./gradlew runTui` on branch `round4`. Visual parity across
    the two sides matters more than which one you pick — pick the same one.

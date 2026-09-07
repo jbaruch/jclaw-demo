@@ -25,8 +25,7 @@ Do not skip this. It is the difference between a 40-second demo and dead air.
 export GOOGLE_API_KEY=...          # from vault secrets.json -> gemini.api_key
 cd ~/Projects/jclaw-ideaconf
 gradle :mocks:mcpJars              # builds calendar-mcp.jar + organizer-mcp.jar
-gradle :round1-chatbot:compileKotlin :round2-tools-mcp:compileKotlin \
-       :round3-memory:compileKotlin :round4-pipeline:compileKotlin
+# (warming, above, already builds every branch)
 ```
 
 Warm the Gradle daemon and the Maven cache with one throwaway `:round1-chatbot:run`
@@ -37,16 +36,16 @@ is not interesting to watch.
 
 | Round | Command | Runtime | What the audience should see |
 |---|---|---|---|
-| 1 | `gradle :round1-chatbot:run` | ~15s | One factory call. It answers charmingly, does nothing. |
-| 2 | `gradle :round2-tools-mcp:run` | ~45s | Tool trace scrolling. It stages a fake meeting and sends. **It reuses a burned excuse.** |
-| 3 | `gradle :round3-memory:run` | ~40s | Same prompt. It names all three burned excuses, picks fresh. Invents a category nothing checks. |
-| 4 | `gradle :round4-pipeline:run` | ~90s | Typed pipeline, sliced tools, critic. Lands `ALREADY_PROFICIENT`. |
-| 4-TUI | `gradle :round4-pipeline:runTui` | ~90s | **Three-pane terminal UI.** Subtask boundaries and tool calls in a TRACE pane instead of scrolling stdout. Prefer this on a stream. |
-| 4b | `JCLAW_NAIVE=1 gradle :round4-pipeline:run` | ~2m | Same pipeline, constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
-| 5 | `JCLAW_LEVEL=4 gradle :round4-pipeline:runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
-| graph | `gradle :app:graph` | ~15s | Emits `pipeline.mmd` **from the live strategy**. Open in IntelliJ for the rendered diagram. |
-| 5b | `JCLAW_LEVEL=11 gradle :round4-pipeline:runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
-| 4c | `JCLAW_CRITIC=cli gradle :round4-pipeline:run` | **~4m** | Critic is Claude Code on subscription, not Gemini. Showpiece only — see below. |
+| 1 | `git checkout round1 && ./gradlew run` | ~15s | One factory call. It answers charmingly, does nothing. |
+| 2 | `git checkout round2 && ./gradlew run` | ~45s | Tool trace scrolling. Stages a fake meeting and sends. **Reuses a burned excuse.** |
+| 3 | `git checkout round3 && ./gradlew run` | ~40s | Same prompt. Names all three burned excuses, picks fresh. Invents a category nothing checks. |
+| 4 | `git checkout round4 && ./gradlew run` | ~90s | Typed pipeline, sliced tools, critic, approval node. Lands `ALREADY_PROFICIENT`. |
+| 4-TUI | `./gradlew runTui` | ~90s | **Three-pane UI.** Subtask boundaries and tool calls in a TRACE pane. Prefer this on a stream. |
+| 4b | `JCLAW_NAIVE=1 ./gradlew run` | ~2m | Constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
+| 4c | `JCLAW_CRITIC=cli ./gradlew run` | ~4m | Critic is Claude Code on subscription. Showpiece only, the designated cut line. |
+| graph | `./gradlew graph` | ~15s | Emits `pipeline.mmd` **from the live strategy**. Open in IntelliJ for the render. |
+| 5 | `JCLAW_LEVEL=4 ./gradlew runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
+| 5b | `JCLAW_LEVEL=11 ./gradlew runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
 
 ### The cross-vendor critic (optional showpiece)
 
@@ -65,7 +64,11 @@ Gemini critic is the default for a reason.
 A critic that returns nothing parseable is treated as a **rejection**, not an
 approval. Fail closed.
 
-`JCLAW_AUTOSEND=1` skips the y/N confirmation gate — use it only if you are short
+**The approval gate is a graph node.** After the critic approves, `approve` calls
+`awaitApproval` and blocks on you — type `y` in the terminal (or the prompt pane in the
+TUI). It is not a tool the model may skip; it always fires.
+
+`JCLAW_AUTOSEND=1` answers it for you and skips the send gate — use it only if you are short
 on time. The gate is a talking point: the model never sends anything.
 
 ## Round 4 — the A/B, in order
@@ -73,8 +76,8 @@ on time. The gate is a talking point: the model never sends anything.
 Run the **naive** one first if you want the critic to earn its keep on camera:
 
 ```bash
-JCLAW_NAIVE=1 gradle :round4-pipeline:run     # fails, critic rejects, refine fixes
-gradle :round4-pipeline:run                   # clean, first-pass approval
+JCLAW_NAIVE=1 ./gradlew run     # fails, critic rejects, refine fixes
+./gradlew run                   # clean, first-pass approval
 ```
 
 Ask the chat to predict what breaks *before* you run the naive one. It is the only
@@ -93,7 +96,7 @@ audience-participation beat that works without a room.
 
 ## The TUI build — VERIFY THIS ON A REAL TERMINAL FIRST
 
-`gradle :round4-pipeline:runTui` runs round 4 inside the TamboUI three-pane UI kept
+`./gradlew runTui` runs round 4 inside the TamboUI three-pane UI kept
 from the JNation build (chat pane, trace pane, prompt input, busy spinner). It compiles
 against tamboui 0.4.0 unchanged and starts without error, **but it has only been smoke
 tested under a pseudo-terminal, never driven by hand.** Run it once in your actual
@@ -102,7 +105,7 @@ terminal at your actual streaming font size before you rely on it.
 Both env flags work here too (`JCLAW_NAIVE`, `JCLAW_CRITIC`). The send gate is the word
 `send` typed into the prompt pane rather than `y`.
 
-If it misbehaves on the day, `gradle :round4-pipeline:run` is the same pipeline on
+If it misbehaves on the day, `./gradlew run` is the same pipeline on
 stdout and is the build that has been dry-run repeatedly.
 
 ## Known behaviour, not bugs

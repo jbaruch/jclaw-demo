@@ -2,6 +2,7 @@ package jclaw
 
 import ai.koog.agents.core.tools.ToolBase
 import ai.koog.agents.core.tools.ToolRegistry
+import ai.koog.agents.core.tools.reflect.asTools
 
 /**
  * Tools sliced by what they can do to the world, not by which server they
@@ -9,7 +10,11 @@ import ai.koog.agents.core.tools.ToolRegistry
  * and the slicing has narrative consequences: `deploy` cannot talk to anyone,
  * so it has to commit to a plan silently and let the critic do the talking.
  */
-class Slices(registry: ToolRegistry) {
+class Slices(registry: ToolRegistry, userTools: UserTools? = null) {
+
+    /** Reaches Baruch. Interrupts him, but nothing leaves the building. */
+    val user: List<ToolBase<*, *>> = userTools?.asTools() ?: emptyList()
+
     private val byName: Map<String, ToolBase<*, *>> = registry.tools.associateBy { it.name }
 
     private fun pick(vararg names: String): List<ToolBase<*, *>> = names.map {

@@ -19,6 +19,7 @@ koog-mcp         = { module = "ai.koog:agents-mcp",                    version.r
 koog-memory      = { module = "ai.koog:agents-features-longterm-memory", version.ref = "koogBeta" }
 koog-skills      = { module = "ai.koog:skills",                          version.ref = "koogBeta" }
 koog-agents-ext  = { module = "ai.koog:agents-ext",                      version.ref = "koogBeta" }
+koog-otel        = { module = "ai.koog:agents-features-opentelemetry",   version.ref = "koog" }
 tamboui-toolkit  = { module = "dev.tamboui:tamboui-toolkit",       version.ref = "tamboui" }
 tamboui-jline3   = { module = "dev.tamboui:tamboui-jline3-backend", version.ref = "tamboui" }
 kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }

@@ -1,6 +1,7 @@
 package jclaw
 
 import ai.koog.agents.cli.asNode
+import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.agent.entity.AIAgentGraphStrategy
 import ai.koog.agents.ext.agent.subgraphWithTask
@@ -26,8 +27,9 @@ fun jclawStrategy(
     mcp: Mcp,
     naive: Boolean,
     cliCritic: Boolean,
-): AIAgentGraphStrategy<String, DeclineDeployment> {
-    val slices = Slices(mcp.registry)
+    userTools: UserTools? = null,
+): AIAgentGraphStrategy<String, JclawResult> {
+    val slices = Slices(mcp.registry, userTools)
     val context = if (naive) "" else Scenario.USER_CONTEXT + "\n"
 
     // A critic that can reject forever is a hang, not a safety feature.
@@ -38,7 +40,21 @@ fun jclawStrategy(
     // hold onto the last plan on its way in.
     var lastPlan: DeclineDeployment? = null
 
-    val jclawStrategy = strategy<String, DeclineDeployment>("j-claw") {
+    val jclawStrategy = strategy<String, JclawResult>("j-claw") {
+
+            val classify by subgraphWithTask<String, ClassifiedInput>(
+                tools = emptyList(),
+                llmModel = GoogleModels.Gemini3_5Flash,
+            ) { input ->
+                "Decide whether Baruch wants out of an obligation (EXCUSE_REQUEST) or is " +
+                    "just talking (CHAT). Echo his message verbatim into userMessage.\n$input"
+            }
+
+            val chatReply by subgraphWithTask<String, String>(
+                tools = slices.read,
+                llmModel = GoogleModels.Gemini3_5Flash,
+            ) { input -> "Reply to Baruch, briefly and in character.\n$input" }
+
 
         val identify by subgraphWithTask<String, DeclineRequest>(
             tools = slices.read,
@@ -83,13 +99,34 @@ fun jclawStrategy(
             "The reviewer rejected the plan. Fix exactly what they objected to, nothing else.\n$feedback"
         }
 
-        edge(nodeStart forwardTo identify)
+        // The critic can ask questions with its user tools, but approval is not left
+        // to whether a model decides to call one. It is a node, so it always happens.
+        val approve by node<DeclineDeployment, DeclineDeployment> { plan ->
+            val verdict = userTools?.awaitApproval(
+                "flavor ${plan.flavor} - \"${plan.messageToOrganizer.take(90)}...\""
+            ) ?: "APPROVED"
+            if (!verdict.startsWith("APPROVED")) println("      you rejected it: $verdict")
+            plan
+        }
+
+        edge(nodeStart forwardTo classify)
+        edge(
+            classify forwardTo identify
+                onCondition { it.intent == Intent.EXCUSE_REQUEST }
+                transformed { it.userMessage }
+        )
+        edge(
+            classify forwardTo chatReply
+                onCondition { it.intent == Intent.CHAT }
+                transformed { it.userMessage }
+        )
+        edge(chatReply forwardTo nodeFinish transformed { JclawResult.ChatReply(it) })
         edge(identify forwardTo deploy)
 
         if (cliCritic) {
             edge(deploy forwardTo verifyByClaude transformed { lastPlan = it; it })
             edge(
-                verifyByClaude forwardTo nodeFinish
+                verifyByClaude forwardTo approve
                     onCondition { it.structuredResult?.approved == true }
                     transformed { lastPlan!! }
             )
@@ -103,13 +140,14 @@ fun jclawStrategy(
                     onCondition { it.structuredResult?.approved != true }
                     transformed {
                         println("      claude still unhappy after $maxRefusals refinements - shipping last draft")
-                        lastPlan!!
+                        JclawResult.ExcuseSent(lastPlan!!)
                     }
             )
             edge(refine forwardTo verifyByClaude)
         } else {
         edge(deploy forwardTo verify)
-        edge(verify forwardTo nodeFinish onCondition { it.successful } transformed { it.input })
+        edge(verify forwardTo approve onCondition { it.successful } transformed { it.input })
+        edge(approve forwardTo nodeFinish transformed { JclawResult.ExcuseSent(it) })
         edge(
             verify forwardTo refine
                 onCondition { !it.successful && refusals.incrementAndGet() <= maxRefusals }
@@ -121,7 +159,7 @@ fun jclawStrategy(
                 onCondition { !it.successful }
                 transformed {
                     println("      critic still unhappy after $maxRefusals refinements - shipping last draft")
-                    it.input
+                    JclawResult.ExcuseSent(it.input)
                 }
         )
         edge(refine forwardTo verify)
