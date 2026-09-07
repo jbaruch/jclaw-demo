@@ -10,6 +10,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-[ -x app/build/install/app/bin/app ] || ./gradlew -q :app:installDist :mocks:mcpJars
+# ALWAYS rebuild. build/ is gitignored, so it survives a checkout - guarding on
+# "does the binary exist" means switching branches and running this would launch
+# the PREVIOUS round. Gradle is up-to-date-fast, so this costs a couple of seconds.
+./gradlew -q :app:installDist :mocks:mcpJars
 
 exec app/build/install/app/bin/app
