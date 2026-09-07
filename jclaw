@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Stage launcher. Uses the installed start scripts, NOT `gradle run` - Gradle does not
+# return after the JVM exits when the MCP children have inherited its stderr, so the
+# terminal hangs after a successful demo. This also skips Gradle startup, so a round
+# runs in about 60s instead of 90.
+#
+#   ./jclaw            run this round
+#
+# Round 1-3 are branches: git checkout round2 && ./jclaw
+set -euo pipefail
+cd "$(dirname "$0")"
+
+[ -x app/build/install/app/bin/app ] || ./gradlew -q :app:installDist
+
+exec app/build/install/app/bin/app

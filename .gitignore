@@ -69,3 +69,4 @@ mocks/memory.sqlite-shm
 .vscode/mcp.json
 .vscode/skills/tessl__*
 # === end Tessl-generated artifacts ===
+.kotlin/

@@ -1,7 +1,6 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
@@ -21,7 +20,7 @@ fun main() = runBlocking {
     val jclaw = AIAgent(
         promptExecutor = simpleGoogleAIExecutor(apiKey),
         systemPrompt = Scenario.SYSTEM_PROMPT,
-        llmModel = GoogleModels.Gemini3_5Flash,
+        llmModel = Models.flash,
     )
 
     val ask = "I got invited to the ${Scenario.EVENT_TITLE}. I don't want to go. Help."
