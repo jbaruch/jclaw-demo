@@ -1,7 +1,6 @@
 plugins { application }
 
 dependencies {
-    implementation(project(":domain"))
     implementation(libs.koog.agents)
     implementation(libs.koog.llms.all)
     implementation(libs.koog.google)
