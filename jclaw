@@ -26,7 +26,7 @@ if [ -z "${GOOGLE_API_KEY:-}" ]; then
   exit 1
 fi
 
-ASK="Get me out of the Basic AI Proficiency Training on Tuesday, run by Dana from People Ops. Don't reuse an excuse I've already used on her."
+ASK="Get me out of the Basic AI Proficiency Training on Tuesday, run by Dana from People Ops. Don't reuse an excuse I've already used on her - tell me which ones you're avoiding."
 
 # Every round opens with the SAME sentence. Identical input, four different
 # behaviours - that is the comparison, so it must not be retyped slightly differently.
