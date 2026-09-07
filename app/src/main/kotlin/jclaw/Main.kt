@@ -7,7 +7,6 @@ import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
 import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
-import ai.koog.rag.base.TextDocument
 import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
 
