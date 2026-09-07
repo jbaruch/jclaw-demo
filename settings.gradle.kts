@@ -12,18 +12,19 @@ plugins {
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
-        maven("https://central.sonatype.com/repository/maven-snapshots/") {
-            name = "ossrh-snapshots"
-            mavenContent { snapshotsOnly() }
-        }
     }
 }
 
 rootProject.name = "jclaw-demo"
 
-include(":mocks:conference-mcp")
-include(":mocks:contacts-mcp")
-include(":tui")
-include(":jclaw-koog")
+include(
+    ":domain",
+    ":mocks",
+    ":tui",
+    ":round1-chatbot",
+    ":round2-tools-mcp",
+    ":round3-memory",
+    ":round4-pipeline",
+)
 // Viktor's side — uncomment when his code lands
 // include(":jclaw-lc4j")
