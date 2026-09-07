@@ -2,10 +2,10 @@ package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.features.eventHandler.feature.handleEvents
-import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
+import kotlin.system.exitProcess
 
 /**
  * ROUND 2 - tools and MCP.
@@ -18,7 +18,7 @@ import kotlinx.coroutines.runBlocking
  * reaches for the most natural excuse in the world - and it is the same one
  * he has already used on her twice.
  */
-fun main() = runBlocking {
+fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val (tools, procs) = Mcp.registry("calendar-mcp", "organizer-mcp")
 
@@ -28,7 +28,7 @@ fun main() = runBlocking {
         val jclaw = AIAgent(
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             systemPrompt = Scenario.SYSTEM_PROMPT,
-            llmModel = GoogleModels.Gemini3_5Flash,
+            llmModel = Models.flash,
             toolRegistry = tools,
         ) {
             handleEvents {
@@ -46,6 +46,9 @@ fun main() = runBlocking {
         println("\n> $task\n")
         println(jclaw.run(task))
     } finally {
-        procs.forEach { it.destroy() }
+        procs.forEach { it.destroyForcibly() }
+        procs.forEach { runCatching { it.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) } }
+        // MCP's stdio transport leaves a non-daemon reader thread alive.
+        exitProcess(0)
     }
 }

@@ -10,9 +10,8 @@ object Mcp {
     private val javaBin: String =
         File(System.getProperty("java.home"), "bin/java").absolutePath
 
-    private val mocksDir: String = requireNotNull(System.getProperty("jclaw.mocks")) {
-        "jclaw.mocks system property is not set - launch via the Gradle run task"
-    }
+    private val mocksDir: String =
+        System.getProperty("jclaw.mocks") ?: "mocks/build/libs"
 
     private fun jar(name: String): String {
         val f = File(mocksDir, "$name.jar")
