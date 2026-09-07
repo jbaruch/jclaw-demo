@@ -52,4 +52,17 @@ Three things the shape buys you, none of which are prompt engineering:
 Set `JCLAW_NAIVE=1` to strip the typed constraint out of the handoff. Same pipeline,
 same models, same tools — poorer data. Watch it reach for an excuse it already used.
 
-See `RUNBOOK.md` for stage commands.
+## Running
+
+```bash
+git checkout round3 && ./jclaw      # any round
+./jclaw tui                         # round 4 in the three-pane UI
+./jclaw skills 11                   # corporate-speak at intensity 11
+./jclaw graph                       # pipeline.mmd, generated from the live strategy
+```
+
+**Do not use `gradle run`** — it never returns. The app exits, the mocks exit, Gradle
+waits forever. `./jclaw` builds with Gradle and then runs the installed binary, which
+is what the JNation build did for the same reason.
+
+See `RUNBOOK.md` for stage commands and timings.

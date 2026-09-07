@@ -60,10 +60,21 @@ class Mcp private constructor(
                 val jar = File(mocksDir, "$name.jar")
                 require(jar.exists()) { "missing ${jar.absolutePath} - run: gradle :mocks:mcpJars" }
 
+                // NOT Redirect.INHERIT. Inheriting hands the child our stderr file
+                // descriptor - which under `gradle run` is Gradle's - and Gradle then
+                // waits on that pipe long after this JVM has exited, hanging the
+                // terminal after a successful demo. Pipe it and pump it ourselves on a
+                // daemon thread: same visible trace lines, no shared descriptor.
                 val proc = ProcessBuilder(javaBin, "-jar", jar.absolutePath)
-                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .redirectErrorStream(false)
                     .start()
                 procs += proc
+
+                Thread {
+                    proc.errorStream.bufferedReader().useLines { lines ->
+                        lines.forEach { System.err.println(it) }
+                    }
+                }.also { it.isDaemon = true; it.name = "$name-stderr" }.start()
 
                 val client = Client(Implementation("j-claw", "1.0.0"))
                 client.connect(with(McpToolRegistryProvider) { defaultStdioTransport(proc) })

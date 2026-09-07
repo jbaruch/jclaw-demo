@@ -86,8 +86,13 @@ contents. Baruch checks out off-camera while you are presenting, so the editor t
 stays open and the code appears to evolve rather than being four prepared copies.
 
 ```
-git checkout round3 && ./gradlew run
+git checkout round3 && ./jclaw
 ```
+
+**Do not use `gradle run` on your side either if you hit a hang** — it does not return
+with this workload (verified with and without the daemon; the app and the mocks both
+exit, Gradle does not). Build with Gradle, then run the installed start script. The
+JNation build did the same, for the same reason.
 
 Structure your side however you like — but **warm every branch before the stream**.
 A cold first build after a checkout took over 6 minutes; warm it is 40 seconds.

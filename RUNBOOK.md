@@ -2,6 +2,18 @@
 
 IntelliJ IDEA Conf 2026 · Day 1, 15:00–16:00 CEST · Baruch (Koog) + Viktor (LangChain4j Agentic)
 
+
+## Never `gradle run`. Use `./jclaw`.
+
+`gradle run` does not return. Measured, with and without the daemon: the app JVM
+exits, the mock JVMs exit, and Gradle sits there with three live processes until you
+Ctrl-C it. Nothing in the application can fix this — it was verified by instrumenting
+the exit path and then watching the process table while Gradle hung.
+
+**The JNation build hit this too.** Its `run.sh` says, verbatim: *"runs the agent
+binary DIRECTLY (no `gradle run`)"*. `./jclaw` is the same thing: Gradle builds, the
+installed start script runs. Faster as well, for skipping Gradle startup.
+
 ## Before you go live — WARM EVERY BRANCH
 
 The rounds are branches (`round1`..`round4`), one `app/src/main/kotlin/jclaw/Main.kt`
