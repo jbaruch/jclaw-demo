@@ -14,6 +14,14 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Keys live in .env (gitignored), so nothing is typed or shown on stage.
+# Copy .env.example to .env and fill in GOOGLE_API_KEY.
+if [ -f .env ]; then set -a; . ./.env; set +a; fi
+if [ -z "${GOOGLE_API_KEY:-}" ]; then
+  echo "GOOGLE_API_KEY is not set. Put it in .env (see .env.example)." >&2
+  exit 1
+fi
+
 # ALWAYS rebuild. build/ is gitignored, so it survives a checkout - guarding on
 # "does the binary exist" means switching branches and running this would launch
 # the PREVIOUS round. Gradle is up-to-date-fast, so this costs a couple of seconds.
