@@ -12,6 +12,7 @@ application { mainClass.set("jclaw.mocks.CalendarMcpKt") }
 
 val calendarJar by tasks.registering(Jar::class) {
     archiveBaseName.set("calendar-mcp")
+    archiveVersion.set("")   // stable filename: the runbook and the LC4J brief name calendar-mcp.jar
     manifest { attributes["Main-Class"] = "jclaw.mocks.CalendarMcpKt" }
     from(sourceSets.main.get().output)
     from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } }) {
@@ -22,6 +23,7 @@ val calendarJar by tasks.registering(Jar::class) {
 
 val organizerJar by tasks.registering(Jar::class) {
     archiveBaseName.set("organizer-mcp")
+    archiveVersion.set("")
     manifest { attributes["Main-Class"] = "jclaw.mocks.OrganizerMcpKt" }
     from(sourceSets.main.get().output)
     from({ configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) } }) {

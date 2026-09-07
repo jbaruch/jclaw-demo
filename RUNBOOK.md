@@ -24,6 +24,7 @@ is not interesting to watch.
 | 2 | `gradle :round2-tools-mcp:run` | ~45s | Tool trace scrolling. It stages a fake meeting and sends. **It reuses a burned excuse.** |
 | 3 | `gradle :round3-memory:run` | ~40s | Same prompt. It names all three burned excuses, picks fresh. Invents a category nothing checks. |
 | 4 | `gradle :round4-pipeline:run` | ~90s | Typed pipeline, sliced tools, critic. Lands `ALREADY_PROFICIENT`. |
+| 4-TUI | `gradle :round4-pipeline:runTui` | ~90s | **Three-pane terminal UI.** Subtask boundaries and tool calls in a TRACE pane instead of scrolling stdout. Prefer this on a stream. |
 | 4b | `JCLAW_NAIVE=1 gradle :round4-pipeline:run` | ~2m | Same pipeline, constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
 | 5 | `JCLAW_LEVEL=4 gradle :round4-pipeline:runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
 | 5b | `JCLAW_LEVEL=11 gradle :round4-pipeline:runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
@@ -71,6 +72,20 @@ audience-participation beat that works without a room.
   draft, printing `critic still unhappy after 2 refinements`. It cannot hang.
 - **Anything else** → round 3 is the safe fallback. It is visually similar to round 4
   and always completes in 40s.
+
+## The TUI build — VERIFY THIS ON A REAL TERMINAL FIRST
+
+`gradle :round4-pipeline:runTui` runs round 4 inside the TamboUI three-pane UI kept
+from the JNation build (chat pane, trace pane, prompt input, busy spinner). It compiles
+against tamboui 0.4.0 unchanged and starts without error, **but it has only been smoke
+tested under a pseudo-terminal, never driven by hand.** Run it once in your actual
+terminal at your actual streaming font size before you rely on it.
+
+Both env flags work here too (`JCLAW_NAIVE`, `JCLAW_CRITIC`). The send gate is the word
+`send` typed into the prompt pane rather than `y`.
+
+If it misbehaves on the day, `gradle :round4-pipeline:run` is the same pipeline on
+stdout and is the build that has been dry-run repeatedly.
 
 ## Known behaviour, not bugs
 
