@@ -144,7 +144,12 @@ fun jclawStrategy(
             edge(
                 verifyByClaude forwardTo refine
                     onCondition { it.structuredResult?.approved != true && refusals.incrementAndGet() <= maxRefusals }
-                    transformed { c -> "Tier: ${c.structuredResult?.tier}. ${c.structuredResult?.feedback ?: "critic returned nothing parseable"}" }
+                    transformed { c ->
+                        val fb = "Tier: ${c.structuredResult?.tier}. " +
+                            (c.structuredResult?.feedback ?: "critic returned nothing parseable")
+                        println("      critic says: $fb")
+                        fb
+                    }
             )
             // Out of retries. Still goes past a human - an unapproved draft is exactly
             // the one someone should look at.
@@ -163,7 +168,7 @@ fun jclawStrategy(
         edge(
             verify forwardTo refine
                 onCondition { !it.successful && refusals.incrementAndGet() <= maxRefusals }
-                transformed { it.feedback }
+                transformed { println("      critic says: ${it.feedback}"); it.feedback }
         )
         // Out of retries: ship the last draft rather than loop forever, and say so.
         // Out of retries. Still goes past a human.

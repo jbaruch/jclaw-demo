@@ -133,7 +133,7 @@ fun main(): Unit = runBlocking {
             else "\n=== THE CRITIC NEVER APPROVED THIS - last draft, shipped on your call ==="
         )
         println("flavor:  ${plan.flavor}")
-        println("alibi:   ${plan.fakeCalendarEventId}")
+        println("alibi:   " + (plan.fakeCalendarEventId ?: "none - the reason is true, nothing staged"))
         println("message: ${plan.messageToOrganizer}")
         println("hallway: ${plan.hallwayScript}")
 

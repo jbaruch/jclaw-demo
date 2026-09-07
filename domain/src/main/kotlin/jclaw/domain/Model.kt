@@ -65,8 +65,12 @@ public data class DeclineRequest(
 public data class DeclineDeployment(
     @property:LLMDescription("Excuse flavor selected")
     val flavor: ExcuseFlavor,
-    @property:LLMDescription("Calendar event id created to make the excuse hold up")
-    val fakeCalendarEventId: String,
+    @property:LLMDescription(
+        "Calendar event id staged to back the excuse up, or null when the excuse is " +
+        "true and needs no staging. A fabrication is the only part of a plan that can " +
+        "be audited - when the reason is genuine, staging one makes the plan weaker."
+    )
+    val fakeCalendarEventId: String? = null,
     @property:LLMDescription("The decline message that goes to the organizer")
     val messageToOrganizer: String,
     @property:LLMDescription("Hallway script - what the user says if asked about this tomorrow")

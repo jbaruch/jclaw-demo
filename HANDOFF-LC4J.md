@@ -78,7 +78,7 @@ the memory round.
 
 Both servers log every call to **stderr**. Keep that visible on stage.
 
-### 3. Four rounds, four BRANCHES
+### 3. Four rounds, four BRANCHES — and ALL FOUR ARE INTERACTIVE
 
 **The Koog side is now branches, not modules.** One `app` module, one file at
 `app/src/main/kotlin/jclaw/Main.kt`, and branches `round1`..`round4` that change its
@@ -89,31 +89,31 @@ stays open and the code appears to evolve rather than being four prepared copies
 git checkout round3 && ./jclaw
 ```
 
-**Do not use `gradle run` on your side either if you hit a hang** — it does not return
-with this workload (verified with and without the daemon; the app and the mocks both
-exit, Gradle does not). Build with Gradle, then run the installed start script. The
-JNation build did the same, for the same reason.
+**Warm every branch before the stream.** A cold first build after a checkout took over
+6 minutes; warm it is seconds. And never `gradle run` — see the note further down.
 
-Structure your side however you like — but **warm every branch before the stream**.
-A cold first build after a checkout took over 6 minutes; warm it is 40 seconds.
+#### Every round is a chat loop. This is the spine of the talk.
 
-Each round must be independently launchable — on stage they run one at a time, in order.
+This is the part an earlier version of this document got wrong, so it is spelled out.
 
-| Round | Must demonstrate | Target runtime |
+Each round is a **REPL**, not a one-shot task. The audience watches us *talk* to the
+thing, hit a wall, and then fix that exact wall in the next round. The limitation has
+to be **discovered in conversation**, not asserted by us over a script:
+
+| Round | What we chat about | The wall the audience sees |
 |---|---|---|
-| 1 | A chatbot in one construction call. Answers well, can do nothing | ~15s |
-| 2 | Tools + both MCP servers. It acts — and **reuses a burned excuse** | ~45s |
-| 3 | Memory installed. Same prompt, and it stops reusing | ~40s |
-| 4 | Typed subtask pipeline with a critic and a refine loop | ~90s |
+| 1 | Ask it to get you out of the training | It says it *did* things it cannot do — claims a calendar event it has no tools to create. Ask what you just said: it has no memory. |
+| 2 | Same ask, now it really acts | It acts, but reuses an excuse already used on Dana — the calendar records that you bailed, not what you told her |
+| 3 | Same ask again | Reuse stops. But it invents an excuse category that is not in our domain, and nothing checks it |
+| 4 | Same ask, and follow-ups | Typed subtasks, a critic, and a human gate |
 
-Round 4 runs **three** times on Baruch's side inside its 21 minutes: the clean
-domain-modelled run (~90s), the naive run that fails and recovers (~2m), and an
-optional cross-vendor critic (~4m, the designated cut line). Parity is only required
-for the first two.
+Rounds 1-3 each end by exposing exactly what the next round installs. **If your side
+runs a single scripted task and prints a result, the ladder collapses** — the audience
+is told there is a problem instead of watching one happen.
 
-Round 2 **must fail** in the specific way described: the agent picks an excuse already
-used on Dana. Do not prompt it away from that. The failure motivates round 3, and if
-your side succeeds where the Koog side fails, the bake-off has no spine.
+Round 4 additionally routes each turn: a `classify` subtask decides whether the message
+is a request to get out of something or just conversation, so the agent survives
+follow-up questions instead of exiting after one answer.
 
 ### 4. The pipeline shape (round 4)
 
@@ -139,6 +139,60 @@ sealed `JclawResult` (`ExcuseSent` | `ChatReply`).
 | `verify` | `DeclineDeployment` → critique | read + **user** |
 | `refine` | feedback → `DeclineDeployment` | read + write |
 | `chatReply` | `String` → `String` | read |
+
+## Which model runs which step, and why
+
+Rounds 1-3 run entirely on **`gemini-3.7-flash`** via the Google API key. Round 4 mixes
+subscriptions with that key.
+
+| Step | Model | Why this one |
+|---|---|---|
+| rounds 1-3, all | `gemini-3.7-flash` (API key) | Rounds 2 and 3 demonstrate **Koog's** tool registry and **Koog's** `LongTermMemory`. A CLI agent brings its own tools and its own context, so it cannot use either — those rounds would stop being about Koog. Round 1 could run on a subscription, but Claude **refuses to play j-claw**: asked to fabricate a conflict it declines and offers an honest counter-offer instead. Round 1 needs a model that will cheerfully claim it staged a calendar event it cannot see, because that lie is the setup for round 2. |
+| `identify` | `gemini-3.7-flash` (API key) | Cheap, fast, and the output is a small typed record. Nothing here benefits from a stronger model. |
+| `deploy` | **Codex** (subscription) | Deliberately the weakest link: a cheap drafter that will overreach. That is what gives the critic something to catch. |
+| `verify` | **Claude** (subscription) | The critic must not be the model that wrote the draft. Different vendor, different weights, different training — and `agents-cli` only supports typed output for `claude`, so it is the only CLI that can return a structured critique. |
+| `refine` | `gemini-3.7-flash` (API key) | Applies one specific correction. Cheap is fine. |
+
+**Why 3.7 and not 3.8.** Measured, same pipeline and prompts, three runs each:
+3.5 = 60s, 3.6 = 37s, **3.7 = ~20s**, 3.8 = ~30s. Newer is not automatically faster,
+and 3.7 was the only one that landed the intended answer on every run. Koog 1.2's
+`GoogleModels` catalogue stops at 3.5; 3.6/3.7/3.8 are declared by hand in `Models.kt`,
+six lines each, because `LLModel` is just a data class.
+
+**Why cheap drafts and an expensive review.** Constraints enforced by a prompt are
+suggestions. Constraints enforced by a separate model that can reject are checks. The
+cheap drafter is not a cost saving, it is the thing that makes the critic visibly earn
+its place.
+
+**Cost of the subscription steps.** A typed Claude stage measures ~150-220s against
+~5s for a Gemini call. Round 4 goes from ~20s to roughly 3 minutes a run. That is a
+deliberate trade for "no API pricing on those steps", not an accident.
+
+## SECURITY — read this before you wire any CLI agent
+
+`CliAIAgent` shells out to the CLI **on your machine**, which inherits **your** MCP
+servers. `workspace` scopes the filesystem and **not** MCP.
+
+An early build of round 1 ran Claude with `BypassPermissions` and no MCP restriction.
+Asked to get someone out of a meeting it read a real calendar, a real TripIt itinerary,
+a real work address, and **created a real calendar event**. On a livestream that is
+private data on YouTube, live.
+
+If you use a CLI agent anywhere, pass both:
+
+```kotlin
+additionalFlags = listOf(
+    "--strict-mcp-config",            // only MCP from --mcp-config; pass none
+    "--settings", """{"permissions":{"deny":["Bash","Read","Edit","Write","WebFetch","WebSearch","Glob","Grep","Task","NotebookEdit"]}}""",
+)
+```
+
+Do **not** use `--tools` or `--disallowedTools` for this: both are variadic, so they
+swallow the prompt and the run dies with `No result event found`, which looks like a
+Koog bug and is not one. `--settings` takes a single argument.
+
+Verify it: ask the agent what is on your calendar. It must answer that it has no
+calendar tool.
 
 **Four capability axes, not three:**
 

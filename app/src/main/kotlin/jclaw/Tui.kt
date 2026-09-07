@@ -118,7 +118,7 @@ fun main(): Unit {
                 } else {
                     tui.chat("j-claw: ✘ critic never approved — last draft, flavor ${plan.flavor}", ChatKind.ERR)
                 }
-                tui.chat("j-claw: alibi staged → ${plan.fakeCalendarEventId}", ChatKind.TOOL_RESULT)
+                tui.chat("j-claw: " + (plan.fakeCalendarEventId?.let { "alibi staged → $it" } ?: "nothing staged — the reason is true"), ChatKind.TOOL_RESULT)
                 tui.chat("j-claw: ${plan.messageToOrganizer}", ChatKind.JCLAW)
                 tui.chat("j-claw: hallway script → ${plan.hallwayScript}", ChatKind.JCLAW)
                 tui.chat("Send it? type 'send' to deliver, anything else to hold.", ChatKind.OK)
