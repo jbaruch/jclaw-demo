@@ -6,6 +6,7 @@ dependencies {
     implementation(libs.koog.llms.all)
     implementation(libs.koog.google)
     implementation(libs.koog.mcp)
+    implementation(libs.koog.memory)
     implementation(libs.kotlinx.coroutines)
 }
 

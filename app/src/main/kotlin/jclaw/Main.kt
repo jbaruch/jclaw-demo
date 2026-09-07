@@ -2,35 +2,43 @@ package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.features.eventHandler.feature.handleEvents
+import ai.koog.agents.longtermmemory.feature.LongTermMemory
+import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
 import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
+import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
+import ai.koog.rag.base.TextDocument
 import jclaw.domain.Scenario
 import kotlinx.coroutines.runBlocking
 
 /**
- * ROUND 2 - tools and MCP.
+ * ROUND 3 - memory.
  *
- * The agent can now act: it reads the calendar, checks how touchy the
- * organizer is, stages a backing event, and sends the decline for real.
- *
- * What it CANNOT do is remember. The calendar records that Baruch bailed on
- * three sessions; it does not record what he told Dana each time. So j-claw
- * reaches for the most natural excuse in the world - and it is the same one
- * he has already used on her twice.
+ * Same tools, same MCP servers, same task as round 2. The only difference is
+ * that j-claw now remembers what it told Dana the last three times. The
+ * calendar knew he bailed; memory knows the story he used.
  */
 fun main() = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val (tools, procs) = Mcp.registry("calendar-mcp", "organizer-mcp")
 
-    try {
-        println("tools discovered: " + tools.tools.joinToString { it.name })
+    // Pre-seeded so the very first run has something to avoid.
+    val memory = InMemoryRecordStorage()
+    memory.add(PriorExcuses.seed())
 
+    try {
         val jclaw = AIAgent(
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             systemPrompt = Scenario.SYSTEM_PROMPT,
             llmModel = GoogleModels.Gemini3_5Flash,
             toolRegistry = tools,
         ) {
+            install(LongTermMemory) {
+                retrieval {
+                    storage = memory
+                    searchStrategy = SimilaritySearchStrategy(topK = 5)
+                }
+            }
             handleEvents {
                 onToolCallStarting { println("  -> ${it.toolName}(${it.toolArgs})") }
             }
@@ -39,8 +47,8 @@ fun main() = runBlocking {
         val task = """
             Get me out of "${Scenario.EVENT_TITLE}" (event id ${Scenario.EVENT_ID}),
             run by ${Scenario.ORGANIZER}.
-            Stage a calendar event that makes the excuse hold up, then send the decline.
-            Tell me what you sent and what I should say if Dana asks me about it tomorrow.
+            Do not reuse an excuse I have already used on her.
+            Stage a calendar event that makes it hold up, then send the decline.
         """.trimIndent()
 
         println("\n> $task\n")
