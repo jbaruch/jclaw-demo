@@ -8,6 +8,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines)
 }
 
-application { mainClass.set("jclaw.round1.MainKt") }
+application { mainClass.set("jclaw.MainKt") }
 
 tasks.named<JavaExec>("run") { standardInput = System.`in` }

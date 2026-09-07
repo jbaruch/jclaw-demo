@@ -1,4 +1,4 @@
-package jclaw.round1
+package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.prompt.executor.clients.google.GoogleModels
