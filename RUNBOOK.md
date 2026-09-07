@@ -2,6 +2,23 @@
 
 IntelliJ IDEA Conf 2026 · Day 1, 15:00–16:00 CEST · Baruch (Koog) + Viktor (LangChain4j Agentic)
 
+## Before you go live — WARM EVERY BRANCH
+
+The rounds are branches (`round1`..`round4`), one `app/src/main/kotlin/jclaw/Main.kt`
+that changes underneath you. Switch off-camera while Viktor is presenting.
+
+**The first run on a branch after a checkout recompiles.** Measured: a cold `round2`
+took over 6 minutes where a warm one takes 42 seconds. Warm all four before the stream:
+
+```bash
+for b in round1 round2 round3 round4; do
+  git checkout $b && ./gradlew build -x test
+done
+git checkout round1
+```
+
+Do not skip this. It is the difference between a 40-second demo and dead air.
+
 ## Before you go live
 
 ```bash
@@ -27,6 +44,7 @@ is not interesting to watch.
 | 4-TUI | `gradle :round4-pipeline:runTui` | ~90s | **Three-pane terminal UI.** Subtask boundaries and tool calls in a TRACE pane instead of scrolling stdout. Prefer this on a stream. |
 | 4b | `JCLAW_NAIVE=1 gradle :round4-pipeline:run` | ~2m | Same pipeline, constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
 | 5 | `JCLAW_LEVEL=4 gradle :round4-pipeline:runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
+| graph | `gradle :app:graph` | ~15s | Emits `pipeline.mmd` **from the live strategy**. Open in IntelliJ for the rendered diagram. |
 | 5b | `JCLAW_LEVEL=11 gradle :round4-pipeline:runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
 | 4c | `JCLAW_CRITIC=cli gradle :round4-pipeline:run` | **~4m** | Critic is Claude Code on subscription, not Gemini. Showpiece only — see below. |
 

@@ -26,6 +26,17 @@ tasks.register<JavaExec>("runTui") {
     standardInput = System.`in`
 }
 
+/** Emit the pipeline diagram from the live strategy: `gradle :app:graph`. */
+tasks.register<JavaExec>("graph") {
+    group = "application"
+    dependsOn(":mocks:mcpJars")
+    mainClass.set("jclaw.GraphKt")
+    classpath = sourceSets.main.get().runtimeClasspath
+    systemProperty("jclaw.mocks", rootProject.layout.projectDirectory.dir("mocks/build/libs").asFile.absolutePath)
+    // JavaExec runs in the module dir; write to the repo root where it is expected.
+    systemProperty("jclaw.graph.out", rootProject.layout.projectDirectory.file("pipeline.mmd").asFile.absolutePath)
+}
+
 /** The Agent Skills flourish. */
 tasks.register<JavaExec>("runSkills") {
     group = "application"

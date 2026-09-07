@@ -1,45 +1,105 @@
 ---
-config:
-  theme: base
-  themeVariables:
-    background: '#fffaf0'
-    primaryColor: '#fffaf0'
-    primaryTextColor: '#1f2937'
-    primaryBorderColor: '#8b7355'
-    lineColor: '#6b5b3a'
-    secondaryColor: '#fafaf5'
-    tertiaryColor: '#fefce8'
+title: j-claw
 ---
-%%{init: {'theme': 'base', 'themeVariables': {'background': '#fffaf0', 'primaryColor': '#fffaf0', 'primaryTextColor': '#1f2937', 'primaryBorderColor': '#8b7355', 'lineColor': '#6b5b3a'}}}%%
-flowchart TD
-    Start([User prompt]) --> Classify
+stateDiagram
+    state "identify" as identify {
+        state "setupTask" as setupTask
+        state "nodeCallLLM" as nodeCallLLM
+        state "nodeDecide" as nodeDecide
+        state "callToolsHacked" as callToolsHacked
+        state "handleAssistantMessage" as handleAssistantMessage
+        state "finalizeTask" as finalizeTask
+        state "sendToolsResults" as sendToolsResults
 
-    Classify["classify<br/>O3 Mini · reasoning"]
-    Classify -- "intent = EXCUSE_REQUEST" --> Identify
-    Classify -- "intent = CHAT" --> ChatReply
+        [*] --> setupTask
+        setupTask --> nodeCallLLM
+        nodeCallLLM --> nodeDecide
+        nodeDecide --> callToolsHacked : transformed
+        nodeDecide --> handleAssistantMessage : transformed
+        nodeDecide --> [*] : transformed
+        callToolsHacked --> finalizeTask : onCondition
+        callToolsHacked --> sendToolsResults
+        handleAssistantMessage --> nodeDecide
+        finalizeTask --> [*]
+        sendToolsResults --> nodeDecide
+    }
+    state "deploy" as deploy {
+        state "setupTask" as setupTask
+        state "nodeCallLLM" as nodeCallLLM
+        state "nodeDecide" as nodeDecide
+        state "callToolsHacked" as callToolsHacked
+        state "handleAssistantMessage" as handleAssistantMessage
+        state "finalizeTask" as finalizeTask
+        state "sendToolsResults" as sendToolsResults
 
-    subgraph Pipeline [Excuse pipeline]
-        Identify["identifyExcuse<br/>GPT-4o<br/>getCalendar, getEventAttendees"]
-        Deploy["deployExcuse<br/>Sonnet 4<br/>sendExcuse"]
-        Verify{"verifyExcuse<br/>O3 · reasoning<br/>awaitReaction"}
-        Refine["refineExcuse<br/>Sonnet 4"]
+        [*] --> setupTask
+        setupTask --> nodeCallLLM
+        nodeCallLLM --> nodeDecide
+        nodeDecide --> callToolsHacked : transformed
+        nodeDecide --> handleAssistantMessage : transformed
+        nodeDecide --> [*] : transformed
+        callToolsHacked --> finalizeTask : onCondition
+        callToolsHacked --> sendToolsResults
+        handleAssistantMessage --> nodeDecide
+        finalizeTask --> [*]
+        sendToolsResults --> nodeDecide
+    }
+    state "verify" as verify {
+        state "saveInput" as saveInput
+        state "provideResult" as provideResult
+        state "verifyTask" as verifyTask {
+            state "setupTask" as setupTask
+            state "nodeCallLLM" as nodeCallLLM
+            state "nodeDecide" as nodeDecide
+            state "callToolsHacked" as callToolsHacked
+            state "handleAssistantMessage" as handleAssistantMessage
+            state "finalizeTask" as finalizeTask
+            state "sendToolsResults" as sendToolsResults
 
-        Identify --> Deploy
-        Deploy --> Verify
-        Verify -- "successful = true" --> ExcuseSent([JclawResult.ExcuseSent])
-        Verify -- "successful = false" --> Refine
-        Refine --> Verify
-    end
+            [*] --> setupTask
+            setupTask --> nodeCallLLM
+            nodeCallLLM --> nodeDecide
+            nodeDecide --> callToolsHacked : transformed
+            nodeDecide --> handleAssistantMessage : transformed
+            nodeDecide --> [*] : transformed
+            callToolsHacked --> finalizeTask : onCondition
+            callToolsHacked --> sendToolsResults
+            handleAssistantMessage --> nodeDecide
+            finalizeTask --> [*]
+            sendToolsResults --> nodeDecide
+        }
 
-    ChatReply["chatReply<br/>Sonnet 4.5<br/>UserTools only"]
-    ChatReply --> ChatDone([JclawResult.ChatReply])
+        [*] --> saveInput
+        saveInput --> verifyTask
+        verifyTask --> provideResult
+        provideResult --> [*]
+    }
+    state "refine" as refine {
+        state "setupTask" as setupTask
+        state "nodeCallLLM" as nodeCallLLM
+        state "nodeDecide" as nodeDecide
+        state "callToolsHacked" as callToolsHacked
+        state "handleAssistantMessage" as handleAssistantMessage
+        state "finalizeTask" as finalizeTask
+        state "sendToolsResults" as sendToolsResults
 
-    classDef start fill:#e0f2fe,stroke:#0284c7,stroke-width:1.5px,color:#0c4a6e;
-    classDef route fill:#fef3c7,stroke:#f59e0b,stroke-width:1.5px,color:#92400e;
-    classDef terminal fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d;
+        [*] --> setupTask
+        setupTask --> nodeCallLLM
+        nodeCallLLM --> nodeDecide
+        nodeDecide --> callToolsHacked : transformed
+        nodeDecide --> handleAssistantMessage : transformed
+        nodeDecide --> [*] : transformed
+        callToolsHacked --> finalizeTask : onCondition
+        callToolsHacked --> sendToolsResults
+        handleAssistantMessage --> nodeDecide
+        finalizeTask --> [*]
+        sendToolsResults --> nodeDecide
+    }
 
-    class Start start;
-    class Classify route;
-    class ExcuseSent,ChatDone terminal;
-
-    style Pipeline fill:#fafaf5,stroke:#9c8a5a,stroke-width:1px,color:#3f3f46;
+    [*] --> identify
+    identify --> deploy
+    deploy --> verify
+    verify --> [*] : transformed
+    verify --> refine : transformed
+    verify --> [*] : transformed
+    refine --> verify
