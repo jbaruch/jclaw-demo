@@ -64,4 +64,7 @@ same models, same tools — poorer data. Watch it reach for an excuse it already
 **Do not use `gradle run`** — it never returns. The app exits, the mocks exit, Gradle
 waits forever. `./jclaw` builds with Gradle and then runs the installed binary.
 
+Add Langfuse keys to `.env` (see `.env.example`) and rounds 2-4 export every run as a
+trace: sessions per process, tags per round and mode, tokens and cost per model call.
+
 See `RUNBOOK.md` for stage commands and timings.

@@ -317,6 +317,8 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 2. LC4J memory equivalent, pointed at the same three prior declines. They are text files in
    `memory/documents/`, one story per file - read those, do not re-type them.
 3. A `VIKTOR_CLASSIC` flavor variant, or one shared enum?
+   Langfuse: Baruch's side exports every run (see `RUNBOOK.md`, Langfuse section). Same
+   project, same keys, tag yours `langchain4j` so the dashboard splits the two sides.
 4. Which models per phase. Ours: Gemini 3.5 Flash drafts, Gemini 3.1 Pro reviews.
 5. Whether your side uses the shared `:tui` module. The TamboUI three-pane UI from the
    JNation build is in this repo and compiles unchanged against tamboui 0.4.0 (now a
