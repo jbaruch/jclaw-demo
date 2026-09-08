@@ -210,7 +210,8 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 
 1. Which LC4J Agentic constructs? `@SequentialAgent` + `@ConditionalAgent` is the
    natural fit for the loop, but it is HIS CALL.
-2. LC4J memory equivalent, pointed at the same three seeded prior declines.
+2. LC4J memory equivalent, pointed at the same three prior declines. They are text files in
+   `memory/documents/`, one story per file - read those, do not re-type them.
 3. A `VIKTOR_CLASSIC` flavor variant, or one shared enum?
 4. Which models per phase. Ours: Gemini 3.5 Flash drafts, Gemini 3.1 Pro reviews.
 5. Whether your side uses the shared `:tui` module. The TamboUI three-pane UI from the

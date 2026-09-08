@@ -17,7 +17,7 @@ Built against **Koog 1.2.0**, released 2026-08-28.
 | `mocks` | — | `calendar-mcp` + `organizer-mcp`, real stdio MCP servers (Kotlin SDK 0.11.1) |
 | `round1-chatbot` | 1 | One `AIAgent(...)` factory call |
 | `round2-tools-mcp` | 2 | Tool registry from two MCP servers. Acts — and reuses a burned excuse |
-| `round3-memory` | 3 | Koog `LongTermMemory`, pre-seeded. Stops repeating itself |
+| `round3-memory` | 3 | Koog `LongTermMemory` over a directory on disk: three committed prior declines in `memory/documents/`, and every decline it sends filed next to them. Stops repeating itself |
 | `round4-pipeline` | 4 | `subgraphWithTask` / `subgraphWithVerification`, tools sliced by capability |
 | `skills/` | 4b | An Agent Skill (`corporate-speak`) discovered off disk at runtime |
 

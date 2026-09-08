@@ -22,7 +22,7 @@ is not interesting to watch.
 |---|---|---|---|
 | 1 | `gradle :round1-chatbot:run` | ~15s | One factory call. It answers charmingly, does nothing. |
 | 2 | `gradle :round2-tools-mcp:run` | ~45s | Tool trace scrolling. It stages a fake meeting and sends. **It reuses a burned excuse.** |
-| 3 | `gradle :round3-memory:run` | ~40s | Same prompt. It names all three burned excuses, picks fresh. Invents a category nothing checks. |
+| 3 | `gradle :round3-memory:run` | ~40s | Same prompt. It names all three burned excuses, picks fresh. Invents a category nothing checks. Run it again: a new process, and it knows what the first one sent, from `memory/documents/`. |
 | 4 | `gradle :round4-pipeline:run` | ~90s | Typed pipeline, sliced tools, critic. Lands `ALREADY_PROFICIENT`. |
 | 4-TUI | `gradle :round4-pipeline:runTui` | ~90s | **Three-pane terminal UI.** Subtask boundaries and tool calls in a TRACE pane instead of scrolling stdout. Prefer this on a stream. |
 | 4b | `JCLAW_NAIVE=1 gradle :round4-pipeline:run` | ~2m | Same pipeline, constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |

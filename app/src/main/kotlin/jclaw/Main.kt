@@ -2,10 +2,13 @@ package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.features.eventHandler.feature.handleEvents
+import ai.koog.agents.longtermmemory.feature.FailurePolicy
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
-import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
-import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
+import ai.koog.embeddings.local.LLMEmbedder
+import ai.koog.prompt.executor.clients.google.GoogleLLMClient
+import ai.koog.prompt.executor.clients.google.GoogleModels
+import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import kotlinx.coroutines.runBlocking
 import kotlin.system.exitProcess
 
@@ -25,9 +28,9 @@ fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val (tools, procs) = Mcp.registry("calendar-mcp", "organizer-mcp")
 
-    // Pre-seeded so the very first run has something to avoid.
-    val memory = InMemoryRecordStorage()
-    memory.add(PriorExcuses.seed())
+    // Memory is a directory on disk. memory/documents/ is what j-claw told Dana before:
+    // three committed files today, one more after every run. Nothing is seeded in code.
+    val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
 
     try {
         val jclaw = AIAgent(
@@ -40,6 +43,11 @@ fun main(): Unit = runBlocking {
                 retrieval {
                     storage = memory
                     searchStrategy = SimilaritySearchStrategy(topK = 5)
+                }
+                ingestion {
+                    storage = memory
+                    documentExtractor = Memory.whatJclawToldDana
+                    failurePolicy = FailurePolicy.FAIL_FAST
                 }
             }
             handleEvents {

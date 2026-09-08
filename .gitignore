@@ -38,9 +38,8 @@ logs/
 # Tessl tile cache
 .tessl/tiles/
 
-# SQLite WAL/SHM (the seeded memory.sqlite is committed; transient files aren't)
-mocks/memory.sqlite-wal
-mocks/memory.sqlite-shm
+# j-claw's memory: memory/documents/ is committed (the seed); the vectors are an embedding cache
+memory/vectors/
 
 # Compiled output that isn't committed
 **/target/
