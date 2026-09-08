@@ -134,6 +134,24 @@ actual terminal at your actual streaming font size before you rely on it.**
 If it misbehaves on the day, `./jclaw plain` is the same round on stdout: paste the
 sentence, answer `y` at the send gate.
 
+## Langfuse — every run is a trace
+
+With `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` in `.env`,
+rounds 2-4 export to Langfuse through Koog's OpenTelemetry feature (see
+`Observability.kt`). Without them nothing is installed and nothing changes.
+
+What lands, per run: `create_agent j-claw` → `invoke_agent j-claw` → `strategy` →
+every subgraph, node, model call (with the messages, tokens and cost) and tool call.
+Each `./jclaw` process is one Langfuse **session**; traces are named `jclaw-roundN` and
+tagged with the round and the mode (`domain-modelled` / `naive`, `critic:gemini` /
+`critic:claude-code`), so the dashboard filters by either.
+
+On stage: Langfuse → Traces → newest. The tree is the FLOW row with the receipts:
+which model, how many tokens, what it cost, what it saw. The Sessions view is the
+whole conversation. Traces arrive a second or two after the spans end; the tail of a
+run - the critic's verdict, the root - lands when the process exits, because that is
+when Koog ends those spans. Quit the TUI cleanly (ctrl-C is fine); `kill -9` loses it.
+
 ## Which model, and why
 
 Default is **`gemini-3.7-flash`**, chosen by measuring rather than by version number.
