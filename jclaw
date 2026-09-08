@@ -41,8 +41,8 @@ seed() {
 
 case "${1:-run}" in
   1|2|3|4)
-    git checkout -q "round$1" -- . 2>/dev/null || true
-    git checkout -q "round$1" 2>/dev/null || true
+    # Preserve local work; fail visibly if a branch switch would overwrite it.
+    git switch --quiet "round$1"
     # A round starts from the three committed prior declines: whatever earlier runs
     # wrote into memory/ (and the vector cache) goes. A bare ./jclaw re-run KEEPS it -
     # that continuity across processes is the round 3 beat.
