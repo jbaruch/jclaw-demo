@@ -121,8 +121,9 @@ fun main(args: Array<String>) {
             ChatKind.OK,
         )
 
-        // The opening sentence arrives as an argument - ./jclaw passes the same one in
-        // every round. JclawTui echoes what you type, so only the argument needs echoing.
+        // A program argument, if given, is asked on startup (the smoke tests use it); on
+        // stage the sentence is pasted. JclawTui echoes what you type, so only the
+        // argument needs echoing here.
         var next: String? = args.joinToString(" ").ifBlank { null }
         next?.let { tui.chat("you: $it", ChatKind.YOU) }
 
