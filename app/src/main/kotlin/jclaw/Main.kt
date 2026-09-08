@@ -11,7 +11,9 @@ import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
 import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
-import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
+import ai.koog.embeddings.local.LLMEmbedder
+import ai.koog.prompt.executor.clients.google.GoogleLLMClient
+import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import jclaw.domain.DeclineDeployment
 import jclaw.domain.DeclineRequest
@@ -46,7 +48,9 @@ fun main(): Unit = runBlocking {
 
     Mcp.boot("calendar-mcp", "organizer-mcp").use { mcp ->
         val slices = Slices(mcp.registry)
-        val memory = InMemoryRecordStorage().apply { add(PriorExcuses.seed()) }
+        // Memory is a directory on disk: memory/documents/, three committed prior declines.
+        // Round 4 knows which flavor it used, so what it files after a send is typed, not prose.
+        val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
 
         // JCLAW_NAIVE=1 strips the typed constraint out of the handoff: identify stops
         // reporting which flavors are burned, and nobody tells deploy about Baruch's day
@@ -154,6 +158,7 @@ fun main(): Unit = runBlocking {
                     args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
                 )
                 println("sent: $receipt")
+                memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, plan.flavor.name, plan.messageToOrganizer)))
             } else {
                 println("held. nothing was sent.")
             }

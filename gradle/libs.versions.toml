@@ -17,6 +17,8 @@ koog-google      = { module = "ai.koog:prompt-executor-google-client", version.r
 koog-llms-all    = { module = "ai.koog:prompt-executor-llms-all",      version.ref = "koogBeta" }
 koog-mcp         = { module = "ai.koog:agents-mcp",                    version.ref = "koogBeta" }
 koog-memory      = { module = "ai.koog:agents-features-longterm-memory", version.ref = "koogBeta" }
+koog-rag-vector  = { module = "ai.koog:rag-vector",                      version.ref = "koogBeta" }
+koog-embeddings  = { module = "ai.koog:embeddings-llm",                  version.ref = "koog" }
 koog-skills      = { module = "ai.koog:skills",                          version.ref = "koogBeta" }
 koog-agents-ext  = { module = "ai.koog:agents-ext",                      version.ref = "koogBeta" }
 koog-otel        = { module = "ai.koog:agents-features-opentelemetry",   version.ref = "koog" }

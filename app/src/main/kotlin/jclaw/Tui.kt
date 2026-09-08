@@ -7,7 +7,9 @@ import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
 import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
-import ai.koog.agents.longtermmemory.storage.InMemoryRecordStorage
+import ai.koog.embeddings.local.LLMEmbedder
+import ai.koog.prompt.executor.clients.google.GoogleLLMClient
+import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
@@ -51,7 +53,10 @@ fun main(): Unit {
             outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
             reactions = submissions,
         )
-        val memory = InMemoryRecordStorage().apply { add(PriorExcuses.seed()) }
+        val memory = Memory.open(
+            LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001),
+            trace = { tui.trace(it.trim(), TraceKind.TOOL_CALL) },
+        )
 
         tui.trace("mode: " + if (naive) "NAIVE — typed constraint stripped" else "DOMAIN-MODELLED", TraceKind.SUBGRAPH_START)
         tui.trace("critic: " + if (cliCritic) "Claude Code (subscription)" else "Gemini 3.1 Pro", TraceKind.SUBGRAPH_START)
@@ -130,6 +135,7 @@ fun main(): Unit {
                         args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
                     )
                     tui.chat("j-claw: delivered. $receipt", ChatKind.OK)
+                    memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, plan.flavor.name, plan.messageToOrganizer)))
                 } else {
                     tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
                 }

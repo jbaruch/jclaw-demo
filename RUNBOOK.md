@@ -60,7 +60,7 @@ is not interesting to watch.
 |---|---|---|---|
 | 1 | `git checkout round1 && ./jclaw` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
 | 2 | `git checkout round2 && ./jclaw` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
-| 3 | `git checkout round3 && ./jclaw` | ~9s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. |
+| 3 | `./jclaw 3` | ~10s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. Memory is `memory/documents/` on disk; a bare `./jclaw` re-run is a new process that knows what the first one sent. |
 | 4 | `git checkout round4 && ./jclaw` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
 | 4-TUI | `./jclaw tui` | ~20s | Three-pane UI. Agent asks in CHAT, you answer in PROMPT. |
 | 4b | `JCLAW_NAIVE=1 ./jclaw` | ~40s | Constraint stripped. Reaches for a burned excuse. Critic catches it. |

@@ -15,7 +15,7 @@ Built against **Koog 1.2.0**, released 2026-08-28.
 |---|---|---|
 | `round1` | 1 | One `AIAgent(...)` factory call |
 | `round2` | 2 | Tool registry from two MCP servers. Acts — and reuses a burned excuse |
-| `round3` | 3 | Koog `LongTermMemory`, pre-seeded. Stops repeating itself |
+| `round3` | 3 | Koog `LongTermMemory` over a directory on disk: three committed prior declines in `memory/documents/`, and every decline it sends filed next to them. Stops repeating itself |
 | `round4` | 4 | `subgraphWithTask` / `subgraphWithVerification`, tools sliced by capability, critic, approval node |
 
 Every branch is the same `app` module with the same file at
