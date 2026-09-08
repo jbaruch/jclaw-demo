@@ -73,6 +73,7 @@ fun main(args: Array<String>) {
         tui.trace("critic: " + if (cliCritic) "Claude Code (subscription)" else "Gemini 3.1 Pro", TraceKind.SUBGRAPH_START)
 
         val agent = AIAgent(
+            id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
                 prompt = Scenario.SYSTEM_PROMPT,

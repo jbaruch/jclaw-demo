@@ -19,6 +19,12 @@ import kotlinx.coroutines.runBlocking
 
 /** calendar-mcp - reads the diary, stages the alibi. */
 fun main() = runBlocking {
+    // stdout is the protocol channel. Anything else that prints there - a logging
+    // library announcing itself - corrupts it. Hand the transport the real stdout and
+    // point System.out at stderr, where this server's trace lines go anyway.
+    val protocol = System.out
+    System.setOut(System.err)
+
     val server = Server(
         serverInfo = Implementation(name = "calendar-mcp", version = "1.0.0"),
         options = ServerOptions(
@@ -58,7 +64,7 @@ fun main() = runBlocking {
     server.createSession(
         StdioServerTransport(
             inputStream = System.`in`.asSource().buffered(),
-            outputStream = System.out.asSink().buffered(),
+            outputStream = protocol.asSink().buffered(),
         ),
     )
     System.err.println("[calendar-mcp] ready")

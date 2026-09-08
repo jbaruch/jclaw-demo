@@ -89,6 +89,7 @@ fun main(): Unit = runBlocking {
         val jclawStrategy = jclawStrategy(mcp, naive, cliCritic, userTools)
 
         val jclaw = AIAgent(
+            id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
                 prompt = Scenario.SYSTEM_PROMPT,
