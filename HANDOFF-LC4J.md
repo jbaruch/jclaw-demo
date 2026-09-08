@@ -51,7 +51,8 @@ enum ExcuseFlavor {
 }
 enum PlausibilityTier { AIRTIGHT, CREDIBLE, THIN, HR_WILL_NOTICE }
 
-DeclineRequest    { eventId, recentlyUsedFlavors[], knownAttendees[], organizerName }
+DeclineRequest    { eventId, recentlyUsedFlavors[], knownAttendees[], organizerName,
+                    userInstruction, previouslyProposedFlavors[] }
 DeclineDeployment { flavor, fakeCalendarEventId, messageToOrganizer, hallwayScript }
 DeclineCritique   { tier, approved, feedback }
 ```
@@ -223,6 +224,15 @@ A rejection allows **two refinements**. Codex reviews each revision; rejection a
 the second refinement blocks the result. This means at most three verdicts per
 request, not two refusals followed by an override. A missing, malformed, failed, or
 timed-out verdict blocks immediately. A new request starts with its own allowance.
+
+Do not swallow a new instruction at the send-confirmation prompt. A plain `no`
+holds the approved plan. **“no, let's use another one”** holds it and immediately
+starts a new workflow using the preceding conversation. Carry the exact user
+instruction and previously proposed flavors through the typed handoff to Claude;
+do not mark an unsent proposal as a previously used excuse. Each replacement gets
+a fresh Codex review and its own bounded refinement allowance. Style-only rewrites
+remain ordinary chat. The first draft may honestly be approved; the alternate-plan
+request is then the next demo beat, with the next verdict left to the real judge.
 
 Sending happens only after explicit critic approval and human confirmation. Show
 the latest approved message to the human; send that same message once. The TUI

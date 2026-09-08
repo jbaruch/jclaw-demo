@@ -138,12 +138,22 @@ second. Completion/failure freezes the elapsed duration; each retry gets a new r
 5. On rejection, read the revised draft printed before Codex's next review. Each
    draft and verdict is labelled with its attempt so the audience can match them.
    After two refinements, another rejection produces `Blocked`; nothing can be sent.
-6. After approval, read the exact latest plan. The TUI asks for `send`; any other
-   reply holds it. The stdout fallback asks for `y` or `yes`. Sending is owned by
-   the application after the graph returns `ReadyToSend`.
+6. After approval, read the exact latest plan. The TUI accepts `send`; stdout accepts
+   `y` or `yes`. A plain `no` holds the plan. A substantive reply holds it and becomes
+   the next conversational request. Sending is owned by the application after the
+   graph returns `ReadyToSend`.
 7. Quit cleanly and show the completed run in Langfuse (walkthrough below).
    Reserve three minutes for this inside stage 4's existing budget, before the
    context comparison. The observability explanation is part of the core demo.
+
+If Claude starts with the honest reason and Codex approves, that is a valid result.
+At the send prompt, type **“no, let's use another one”**. The first plan stays unsent;
+Gemini resolves the follow-up from the conversation and Claude drafts a different
+approach, then Codex judges again. The typed request carries the user's instruction
+and previously proposed flavors separately from excuses actually sent. This is a
+new user-requested workflow with a fresh review allowance, not a critic-triggered
+refinement. Read the actual next verdict; the judge is not instructed to reject.
+A style-only follow-up such as “rewrite in corporate-speak” stays ordinary chat.
 
 A missing, malformed, failed, or timed-out Codex verdict blocks immediately. A
 human cannot override it. `JCLAW_AUTOSEND=1 ./jclaw plain` automatically confirms

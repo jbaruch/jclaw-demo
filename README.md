@@ -109,6 +109,10 @@ normal-weight paragraphs and styled emphasis. Round 4 adds a live FLOW row and
 per-phase stopwatches that update in place and freeze when each invocation ends.
 It prints each initial or revised Claude draft before the matching Codex verdict,
 so the review transcript shows exactly what was approved or rejected.
+At send confirmation, `no` holds the plan; “no, let's use another one” holds it and
+starts a new reviewed plan using the conversation. Previously proposed approaches
+remain distinct from the long-term record of messages actually sent. Style-only
+follow-ups use ordinary chat.
 
 The standalone skills runner takes the message as an argument, `JCLAW_MESSAGE`,
 or standard input. It has no built-in sample message, send tool, or memory ingestion.
