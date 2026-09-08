@@ -2,9 +2,10 @@
 
 The Koog side of *Codepocalypse Now: LangChain4j vs JetBrains Koog*.
 
-j-claw is a personal agent that gets you out of **Basic AI Proficiency Training
-(Mandatory)**, run by Dana from People Ops. Across four rounds it acquires tools,
-memory, and a reviewed plan. In round 4 Gemini gathers the context, Claude drafts
+j-claw is Baruch's personal assistant. The user supplies the task; the shared demo
+asks it to get him out of **Basic AI Proficiency Training (Mandatory)**, run by
+Dana from People Ops. Across four rounds it acquires tools, memory, skills, and a
+reviewed plan. In round 4 Gemini gathers the context, Claude drafts
 and refines through a subscription CLI, and Codex judges through a subscription CLI.
 The application offers to send only after Codex approves.
 
@@ -16,13 +17,29 @@ Built against **Koog 1.2.0**, released 2026-08-28.
 |---|---|---|
 | `round1` | 1 | One `AIAgent(...)` factory call; no tools or conversation memory |
 | `round2` | 2 | Tool registry from two mock MCP servers; can act, but cannot remember earlier excuses |
-| `round3` | 3 | Koog `LongTermMemory` over `memory/documents/`: three committed prior declines plus each decline it sends |
+| `round3` | 3 | Koog `LongTermMemory` over `memory/documents/`, recording successful sends; Agent Skills for generic corporate-speak rewrites at intensity 1–11 |
 | `round4` | 4 | Typed handoffs across Gemini, Claude, and Codex; bounded refinement; a critic veto before human confirmation |
 
 Every branch has the same `app` module and source path,
 `app/src/main/kotlin/jclaw/Main.kt`. Switching branches changes the implementation
-in the open editor tab. `domain`, `mocks`, and the shared `tui` module are present
-across the rounds; round 4 also includes `skills/` and the typed CLI adapter.
+in the open editor tab. The shared `tui` module is present in every round; `mocks`
+starts in round 2, memory and `skills/` in round 3, and `domain` and the typed CLI
+adapter in round 4.
+
+## Round 3: memory and skills
+
+The three committed prior declines and newly recorded sends use UUID filenames
+under `memory/documents/`. Memory records the actual outbound message after a
+successful send. Drafts and standalone rewrites are not sent history.
+
+Skills are available in ordinary chat from round 3 onward. For example:
+
+> Use the corporate-speak skill at intensity 4 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+
+The agent discovers and reads `skills/corporate-speak/SKILL.md` through file tools
+visible in TRACE. The skill accepts any supplied message and an intensity from 1
+to 11. It changes the language while preserving the source's facts and intent.
+Repeat the full request at intensity 11 for the exaggerated version.
 
 ## Round 4
 
@@ -72,24 +89,32 @@ billing credentials and selects subscription login for those stages.
 ./jclaw            # rerun the current round, preserving its memory
 ./jclaw plain      # current round on stdout
 ./jclaw 4          # switch to the three-provider pipeline
-# Quit the TUI before running the following round-4 commands:
-./jclaw skills 11  # corporate-speak at intensity 11
+# Quit the TUI before running standalone commands:
+./jclaw skills 4 'The release is delayed because tests are failing. I will send an update tomorrow.'
+# The skills runner works in rounds 3–4; these commands require round 4:
 ./jclaw graph      # pipeline.mmd generated from the live strategy
 ./jclaw codex      # standalone typed Codex probe
 ```
 
 Keep branch changes committed before switching rounds. `./jclaw N` resets generated
 rehearsal memory to the three committed prior declines; bare `./jclaw` keeps it.
-The header shows `j-claw` and feature badges; round 4 adds a live FLOW row.
+The header shows `j-claw` and feature badges. Model replies render Markdown with
+normal-weight paragraphs and styled emphasis. Round 4 adds a live FLOW row and
+per-phase stopwatches that update in place and freeze when each invocation ends.
+
+The standalone skills runner takes the message as an argument, `JCLAW_MESSAGE`,
+or standard input. It has no built-in sample message, send tool, or memory ingestion.
 
 Use the launcher for interactive demos: it builds with the Gradle wrapper and then
 runs the installed binary. Earlier rehearsals observed `gradle run` hanging after
 application exit.
 
-Optional Langfuse credentials in `.env` enable traces in rounds 2–4. Inspect the
-available phase, model, token, and cost details; subscription CLI calls do not imply
-API billing or full token/cost coverage in Koog's trace.
+Optional Langfuse credentials in `.env` enable Koog traces in rounds 2–4. Round 4
+includes typed CLI inputs/outputs, provider/role/subscription metadata, and the
+application prompt supplied to the judge. CLI spans do not claim API token prices.
+The runbook walks through the executed graph after the live run; Viktor uses his
+own LC4J observability tooling.
 
 See `RUNBOOK.md` for the stage sequence and rehearsal checks. One integrated smoke
-run on 2026-09-08 took 65.0 seconds with a rejection, refinement, and approval; this
+run on 2026-09-08 took 64.1 seconds with a rejection, refinement, and approval; this
 is an observation, not a stage timing guarantee.

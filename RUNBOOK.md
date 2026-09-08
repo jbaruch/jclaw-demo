@@ -13,12 +13,15 @@ Configure `.env` from `.env.example` before sharing the terminal. It supplies
 and `codex` on `PATH`, logged into their subscriptions. Check subscription login
 before the stream; no API key is needed for either CLI stage.
 
-Warm every branch's build and both MCP jars before the stream:
+Warm every branch's build and, from round 2 onward, both MCP jars before the stream:
 
 ```bash
 for round_branch in round1 round2 round3 round4; do
   git switch "$round_branch" || exit
-  ./gradlew -q :app:installDist :mocks:mcpJars || exit
+  ./gradlew -q :app:installDist || exit
+  if [ "$round_branch" != round1 ]; then
+    ./gradlew -q :mocks:mcpJars || exit
+  fi
 done
 git switch round1
 ```
@@ -52,11 +55,15 @@ ask to the clipboard. Paste it into PROMPT:
 Each round is interactive. Follow-ups go into PROMPT; use Ctrl-C to leave the TUI.
 The stdout fallback (`./jclaw plain`) exits on a blank line or Ctrl-D.
 
+j-claw's identity is a personal assistant; this training request is a user-supplied
+example. Calendar events, organizer sensitivity, and the three seeded stories are
+mock scenario data.
+
 | Round | Command | What to demonstrate |
 |---|---|---|
 | 1 | `./jclaw 1` | Paste the opening ask, read the draft, then type **“Send Dana an email declining the Basic AI Proficiency Training on Tuesday.”** It has no tools to send it. Show the factory without a tool registry. |
-| 2 | `./jclaw 2` | Same ask. It can now act. Compare the calendar events with its claimed "excuses avoided": it treats those events as previous excuses without evidence. Follow the live answer. |
-| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses. Seeded and new memories both use UUID filenames. Read which flavor it chooses and whether the vocabulary matches the domain model. |
+| 2 | `./jclaw 2` | Same ask. It can now act. Compare the calendar events with its claimed "excuses avoided": highlight any calendar events treated as previous excuses without evidence. Follow the live answer. |
+| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses and a new actual send saved with a UUID filename. Restart with bare `./jclaw` to show persistence. Introduce the corporate-speak skill through normal chat at intensity 4. |
 | 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Watch the phase stopwatches, then explain the completed run in Langfuse. Only approval reaches the application's send confirmation. |
 
 Read actual output. A particular fabricated meeting, repeated excuse, new category,
@@ -66,6 +73,42 @@ or critic objection is not guaranteed. If a model succeeds sooner, say so.
 rehearsal memory. To show round 3 remembering its own previous send, exit and run
 bare `./jclaw`: that preserves memory across processes. Do not use `./jclaw 3` for
 that continuity beat, because it resets the rehearsal.
+
+## Round 3 — memory and Agent Skills
+
+Read the three prior messages from `memory/documents/`, then compare retrieval with
+the answer. After a successful mock send, inspect the newly recorded file: its
+UUID filename is an identifier, and its contents are the actual message sent.
+An unsent draft, failed send, or standalone rewrite must not be recorded as sent
+history. Exit and run bare `./jclaw` to demonstrate recall in a fresh process.
+
+Introduce Agent Skills in the same chat, using a different task:
+
+> Use the corporate-speak skill at intensity 4 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+
+Show the agent discovering and reading `skills/corporate-speak/SKILL.md`; the native
+file tools appear as `__list_directory__` and `__read_file__` in TRACE. Open the
+skill file beside the result. Its intensity range is 1–11, and it applies to any
+supplied message. Compare the wording while checking that the delay, cause, and
+promised update remain intact.
+
+For the optional escalation, repeat the full source at intensity 11:
+
+> Use the corporate-speak skill at intensity 11 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+
+Keep the introduction at intensity 4. Cut only the second, intensity-11 rewrite
+if time is short. Skills remain available in round 4's ordinary chat; a standalone
+rewrite does not request send confirmation or alter a critic-approved plan.
+
+The standalone runner is a rehearsal convenience in rounds 3–4. Quit the TUI first:
+
+```bash
+./jclaw skills 4 'The release is delayed because tests are failing. I will send an update tomorrow.'
+```
+
+Supply the message as an argument, through `JCLAW_MESSAGE`, or on standard input.
+There is no built-in sample. This runner has read-only skill tools and no send tool
+or memory ingestion. Label any supplied sample as a sample when demonstrating it.
 
 ## Round 4 — the core three-provider demo
 
@@ -132,38 +175,39 @@ walkthrough, with no second cross-vendor run required:
 `./jclaw codex` is a standalone adapter probe for rehearsal. Skip the walkthrough
 if the clock is tight; the main pipeline already established the three-model story.
 
-## Graph and Agent Skills
+## Optional strategy graph
 
 After exiting the round-4 TUI:
 
 ```bash
 ./jclaw graph
-./jclaw skills 4
-./jclaw skills 11
 ```
 
 Open `pipeline.mmd` in IntelliJ to render the graph generated from the live strategy.
 The human confirmation and send are application code, so do not describe an
 `approve` graph node.
 
-The skills commands use a sample message by default. To use the actual approved
-message, set `JCLAW_MESSAGE` to that message before running them. Call the default
-a sample, even if it resembles the live result. The level is the command argument;
-`./jclaw skills 4` selects four and `./jclaw skills 11` selects eleven.
-
 ## The TUI
 
 All four rounds use CHAT, TRACE, PROMPT, and a busy status line. The header shows
-`j-claw` plus one badge per feature: MCP, MEMORY, WORKFLOW. It has no redundant round
-or stage title. Round 4's separate FLOW row remains; the active stage is yellow,
+`j-claw` plus one badge per feature. It has no redundant round
+or stage title. MCP starts in round 2, MEMORY and SKILLS in round 3, and WORKFLOW
+in round 4. Round 4's separate FLOW row remains; the active stage is yellow,
 completed stages green, and failed stages red. Gemini subgraph events and CLI stage
 callbacks drive it.
+
+CHAT renders model Markdown with normal-weight paragraphs and styled headings,
+emphasis, lists, links, and code. Long replies wrap and scroll through the same
+chat pane.
 
 Tool calls, mock-server logs, and memory activity appear in TRACE. Library stdout
 and stderr go to `jclaw-tui.log`. Check every round at the actual streaming font
 size during rehearsal. Use `./jclaw plain` if the TUI fails.
 
-## Langfuse
+## Koog observability in Langfuse
+
+Baruch uses Langfuse for the Koog walkthrough. Viktor uses his own LC4J
+observability tooling; matching Langfuse export is not a requirement for his side.
 
 Set `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` in `.env` to
 enable traces in rounds 2–4. Without credentials the feature is not installed.
@@ -179,9 +223,12 @@ is available for preparation; identify it as a rehearsal if you use it on stage.
 
 The three-minute walkthrough:
 
-1. Open the graph view and choose **Expanded** to follow the actual calls. Point
-   out deploy → verify and, if it happened, refine → verify. **Aggregated** gives
-   the compact view with repeated-step counts. Do not narrate a loop that did not run.
+1. In the trace's left pane, open **View Options** (the sliders icon) and enable
+   **Show Graph** if needed. Expand the **Graph** bar below the trace tree if it is
+   collapsed. Use the graph's top-left **Aggregated / Expanded** toggle to choose
+   **Expanded**. Point out deploy → verify and, if it happened, refine → verify.
+   **Aggregated** gives the compact view with repeated-step counts. Do not narrate
+   a loop that did not run.
 2. Open **deploy**: show the typed request and Claude's draft output.
 3. Open **verify**: show the candidate, the complete Codex verdict, and feedback.
    Its metadata contains provider/role/subscription details and the application
@@ -190,6 +237,11 @@ The three-minute walkthrough:
    then the next verdict. Follow the trace to `readyToSend` or `blocked`.
 5. Show each phase's **duration**. The terminal stopwatches make the wait visible;
    the trace lets you explain where the time went.
+
+For projection, collapse the browser and Langfuse sidebars and resize the dividers
+to give the graph most of the page. Collapse the detail panel when explaining the
+graph; **Show detail panel** at the far right reopens it for typed inputs/outputs.
+Use **Fit to view** (the corners icon) to fit the executed graph.
 
 Code pointer: `install(OpenTelemetry) { langfuse(...) }` in `Tui.kt`, then the
 export setup in `Observability.kt`. `./jclaw graph` remains a brief optional look
@@ -210,7 +262,9 @@ delivery, and the subsequent memory write are outside the agent trace.
   login off-camera. A failed review must remain blocked; do not use an override.
 - **Repeated rejection:** after two refinements the result is blocked. Show that
   the reviewer can stop the action; the last rejected draft is never sent.
-- **Round 4 exceeds the stage budget:** cut the optional adapter/context/skills
-  beats. A recorded rehearsal may illustrate a result if identified as recorded.
+- **Stage budget is tight:** cut the optional adapter walkthrough, context
+  comparison, strategy graph, or intensity-11 rewrite. Keep the stage-3 skill
+  introduction at intensity 4 and the core round-4 observability walkthrough.
+  A recorded rehearsal may illustrate a result if identified as recorded.
 - **TUI failure:** use `./jclaw plain`. An earlier round can illustrate earlier
   capabilities, but does not demonstrate round 4's critic veto.
