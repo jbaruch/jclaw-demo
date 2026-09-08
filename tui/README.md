@@ -6,7 +6,7 @@ the same.
 
 ## Layout
 
-    ROUND 3 · MEMORY   MCP   MEMORY                   <- header: the round, one badge per feature
+    j-claw   MCP   MEMORY                            <- header: app identity, one badge per feature
     FLOW  identify ✓ → deploy ● → verify · ⇄ refine · <- round 4 only: the pipeline, live
     ┌ CHAT ───────────────────────────────────────┐   <- you and j-claw
     └─────────────────────────────────────────────┘
@@ -18,8 +18,10 @@ the same.
 
 ## API
 
-- `JclawTui(onSubmit, title, features, flow)` - `features` become header badges (cyan,
-  magenta, yellow, in order); `flow` is stage names and connector arrows.
+- `JclawTui(onSubmit, title, features, flow)` - `title` is the app identity (default
+  `j-claw`); `features` become header badges (cyan, magenta, yellow, in order); `flow`
+  is stage names and connector arrows. Keep round/stage labels out of the title so
+  they do not duplicate the feature badges.
 - `chat(line, ChatKind)`, `trace(line, TraceKind)`, `startBusy()` / `stopBusy()`,
   `stage(name, StageState)`, `resetFlow()` - safe from any thread. Calls made before
   the runner exists are queued and replayed in `onStart`.
