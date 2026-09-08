@@ -8,7 +8,11 @@ dependencies {
     implementation(libs.kotlinx.coroutines)
 }
 
-application { mainClass.set("jclaw.MainKt") }
+application {
+    mainClass.set("jclaw.MainKt")
+    // JLine loads a native library; without this the JVM prints a four-line warning.
+    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED")
+}
 
 tasks.named<JavaExec>("run") { standardInput = System.`in` }
 
@@ -25,6 +29,7 @@ tasks.register<JavaExec>("runTui") {
 val tuiScripts = tasks.register<CreateStartScripts>("startScripts_app-tui") {
     applicationName = "app-tui"
     mainClass.set("jclaw.TuiKt")
+    defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED")
     outputDir = layout.buildDirectory.dir("scripts-app-tui").get().asFile
     classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
 }

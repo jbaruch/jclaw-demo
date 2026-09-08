@@ -5,6 +5,7 @@ import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
+import com.jbaruch.jclaw.tui.TraceKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -13,6 +14,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlin.io.path.Path
 import kotlin.system.exitProcess
 
 /**
@@ -21,12 +23,16 @@ import kotlin.system.exitProcess
  *
  * The opening sentence arrives as a program argument (./jclaw passes it), so the
  * round starts the moment the screen is up. Follow-ups are typed into PROMPT.
+ *
+ * TRACE shows the only thing there is to show: one model call per turn, with
+ * zero tools. That emptiness is the point of round 1.
  */
 fun main(args: Array<String>) {
+    JclawTui.quietStdStreams(Path("jclaw-tui.log"))
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) })
+    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, title = "ROUND 1 · CHATBOT")
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
@@ -36,7 +42,10 @@ fun main(args: Array<String>) {
             llmModel = Models.flash,
         ) {
             handleEvents {
-                onLLMCallStarting { _ -> tui.startBusy() }
+                onLLMCallStarting {
+                    tui.trace("→ ${it.model.id} · ${it.prompt.messages.size} messages · ${it.tools.size} tools", TraceKind.LLM)
+                    tui.startBusy()
+                }
                 onLLMCallCompleted { _ -> tui.stopBusy() }
             }
         }
@@ -62,6 +71,11 @@ fun main(args: Array<String>) {
 
     try {
         tui.run()
+    } catch (t: Throwable) {
+        JclawTui.restoreStdStreams()
+        println("j-claw TUI died: $t - details in jclaw-tui.log")
+        t.printStackTrace()
+        exitProcess(1)
     } finally {
         agentScope.cancel()
         // The HTTP client keeps non-daemon threads alive; a closed TUI must exit.
