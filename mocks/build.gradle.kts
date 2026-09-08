@@ -4,6 +4,9 @@ dependencies {
     implementation(libs.mcp.server)
     implementation(libs.kotlinx.coroutines)
     implementation(libs.kotlinx.serialization.json)
+    // The MCP SDK logs through SLF4J. Without a provider, SLF4J announces that on stderr,
+    // and stderr is the servers' trace channel, so the notice landed in the TRACE pane.
+    runtimeOnly(libs.slf4j.nop)
 }
 
 // Two servers live here; `run` defaults to the calendar one.

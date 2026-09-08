@@ -8,6 +8,7 @@ serialization = "1.10.0"
 datetime = "0.7.1"
 sqlite = "3.51.1.0"
 mcp = "0.11.1"
+slf4j = "2.0.17"
 
 [libraries]
 koog-agents      = { module = "ai.koog:koog-agents",           version.ref = "koog" }
@@ -29,6 +30,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 sqlite-jdbc      = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 mcp-server       = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
+slf4j-nop        = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
