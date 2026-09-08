@@ -31,7 +31,7 @@ import kotlin.system.exitProcess
 /**
  * Round 4 with the three-pane terminal UI instead of scrolling stdout.
  *
- * Same pipeline, same flags (JCLAW_NAIVE, JCLAW_CRITIC). The difference is
+ * Same pipeline and JCLAW_NAIVE switch. The difference is
  * that the subtask boundaries and tool calls land in a TRACE pane where they
  * stay legible at streaming resolution, instead of racing past in a log.
  *
@@ -43,12 +43,10 @@ fun main(args: Array<String>) {
     JclawTui.quietStdStreams(Path("jclaw-tui.log"))
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val naive = System.getenv("JCLAW_NAIVE") == "1"
-    val cliCritic = System.getenv("JCLAW_CRITIC") == "cli"
 
     val submissions = Channel<String>(Channel.UNLIMITED)
     val tui = JclawTui(
         onSubmit = { submissions.trySend(it) },
-        title = "ROUND 4 · PIPELINE",
         features = listOf("MCP", "MEMORY", "WORKFLOW"),
         flow = listOf("identify", "→", "deploy", "→", "verify", "⇄", "refine"),
     )
@@ -59,18 +57,13 @@ fun main(args: Array<String>) {
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
         val mcp = Mcp.boot("calendar-mcp", "organizer-mcp", onStderr = { tui.trace(it, TraceKind.TOOL_CALL) })
-        // The agent talks to Baruch through the chat pane and blocks on the prompt pane.
-        val userTools = UserTools(
-            outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
-            reactions = submissions,
-        )
         val memory = Memory.open(
             LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001),
             trace = { tui.trace(it.trim(), TraceKind.TOOL_CALL) },
         )
 
-        tui.trace("mode: " + if (naive) "NAIVE — typed constraint stripped" else "DOMAIN-MODELLED", TraceKind.SUBGRAPH_START)
-        tui.trace("critic: " + if (cliCritic) "Claude Code (subscription)" else "Gemini 3.1 Pro", TraceKind.SUBGRAPH_START)
+        tui.trace("mode: " + if (naive) "NAIVE — less context, no memory" else "DOMAIN-MODELLED", TraceKind.SUBGRAPH_START)
+        tui.trace("models: ${Models.flash.id} → Claude subscription → Codex subscription", TraceKind.SUBGRAPH_START)
 
         val agent = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
@@ -80,7 +73,18 @@ fun main(args: Array<String>) {
                 llm = Models.flash,
                 maxAgentIterations = 200,
             ),
-            strategy = jclawStrategy(mcp, naive, cliCritic, userTools),
+            strategy = jclawStrategy(mcp, naive,
+                onStage = { stage, model, state ->
+                    tui.trace("$stage · $model · $state", TraceKind.LLM)
+                    tui.stage(stage, when (state) {
+                        PipelineStageState.STARTED -> StageState.ACTIVE
+                        PipelineStageState.COMPLETED -> StageState.DONE
+                        PipelineStageState.FAILED -> StageState.FAILED
+                    })
+                    if (state == PipelineStageState.STARTED) tui.startBusy() else tui.stopBusy()
+                },
+                onVerdict = { tui.chat(it, ChatKind.JCLAW) },
+            ),
             toolRegistry = mcp.registry,
         ) {
 
@@ -89,8 +93,8 @@ fun main(args: Array<String>) {
                 langfuse(
                     round = 4,
                     if (naive) "naive" else "domain-modelled",
-                    if (cliCritic) "critic:claude-code" else "critic:gemini",
-                    metadata = mapOf("model" to Models.flash.id, "critic" to if (cliCritic) "claude-code" else Models.pro.id),
+                    "critic:codex", "drafter:claude-code",
+                    metadata = mapOf("model" to Models.flash.id, "drafter" to "claude-code", "critic" to "codex"),
                 )
             }
             if (!naive) install(LongTermMemory) {
@@ -113,7 +117,7 @@ fun main(args: Array<String>) {
                 onLLMCallCompleted { _ -> tui.stopBusy() }
             }
         }
-        closeAgent = { agent.close(); Observability.flush() }
+        closeAgent = { agent.close(); Observability.flush(); mcp.close() }
 
         tui.chat(
             "j-claw: At your service. There is a mandatory training on your calendar. " +
@@ -130,6 +134,7 @@ fun main(args: Array<String>) {
         while (true) {
             val prompt = next ?: submissions.receive()
             next = null
+            var deliveryAttempted = false
             try {
                 tui.resetFlow()
                 val result = agent.run(prompt)
@@ -137,33 +142,43 @@ fun main(args: Array<String>) {
                     tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
                     continue
                 }
-                val sent = result as JclawResult.ExcuseSent
-                val plan = sent.deployment
-                if (sent.criticApproved) {
-                    tui.chat("j-claw: ✓ critic approved — flavor ${plan.flavor}", ChatKind.OK)
-                } else {
-                    tui.chat("j-claw: ✘ critic never approved — last draft, flavor ${plan.flavor}", ChatKind.ERR)
+                if (result is JclawResult.Blocked) {
+                    tui.stage("verify", StageState.FAILED)
+                    tui.chat("BLOCKED: ${result.reason}", ChatKind.ERR)
+                    tui.chat("Nothing was sent. There is no send override.", ChatKind.ERR)
+                    continue
                 }
-                tui.chat("j-claw: " + (plan.fakeCalendarEventId?.let { "alibi staged → $it" } ?: "nothing staged — the reason is true"), ChatKind.TOOL_RESULT)
+                val ready = result as JclawResult.ReadyToSend
+                val plan = ready.deployment
+                tui.chat("j-claw: ✓ Codex approved — flavor ${plan.flavor}", ChatKind.OK)
                 tui.chat("j-claw: ${plan.messageToOrganizer}", ChatKind.JCLAW)
                 tui.chat("j-claw: hallway script → ${plan.hallwayScript}", ChatKind.JCLAW)
-                tui.chat("Send it? type 'send' to deliver, anything else to hold.", ChatKind.OK)
-
-                if (submissions.receive().trim().equals("send", ignoreCase = true)) {
-                    val receipt = mcp.call(
-                        server = "organizer-mcp",
-                        tool = "sendDecline",
-                        args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
-                    )
-                    tui.chat("j-claw: delivered. $receipt", ChatKind.OK)
-                    memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, plan.flavor.name, plan.messageToOrganizer)))
-                } else {
-                    tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
-                }
+                val delivered = deliverApproved(ready,
+                    confirm = {
+                        tui.chat("Send it? type 'send' to deliver, anything else to hold.", ChatKind.OK)
+                        submissions.receive().trim().equals("send", ignoreCase = true)
+                    },
+                    send = {
+                        deliveryAttempted = true
+                        val receipt = mcp.call("organizer-mcp", "sendDecline",
+                            mapOf("eventId" to Scenario.EVENT_ID, "message" to it.messageToOrganizer))
+                        tui.chat("j-claw: delivered. $receipt", ChatKind.OK)
+                        try {
+                            memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, it.flavor.name, it.messageToOrganizer)))
+                        } catch (error: Exception) {
+                            tui.chat("Delivered, but could not save to memory: ${error.message}", ChatKind.ERR)
+                        }
+                    },
+                )
+                if (!delivered) tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
-                tui.chat("✘ ${t.message ?: t.javaClass.simpleName}", ChatKind.ERR)
+                tui.chat(
+                    if (deliveryAttempted) "Delivery attempt failed: ${t.message}. Check the organizer receipt before retrying."
+                    else "BLOCKED: ${t.message ?: t.javaClass.simpleName}. Nothing was sent.",
+                    ChatKind.ERR,
+                )
                 t.printStackTrace()
             }
         }

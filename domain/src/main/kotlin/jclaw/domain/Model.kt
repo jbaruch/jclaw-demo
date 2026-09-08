@@ -22,8 +22,7 @@ public enum class ExcuseFlavor {
     DEADLINE,
 
     @LLMDescription(
-        "The user already has the skill the session teaches, demonstrably and publicly. " +
-        "The strongest option when it is literally true, because it survives any amount of checking."
+        "The user already has practical experience with the subject the session teaches."
     )
     ALREADY_PROFICIENT,
 
@@ -34,7 +33,7 @@ public enum class ExcuseFlavor {
 /** How well the excuse survives contact with People Ops. */
 @Serializable
 public enum class PlausibilityTier {
-    @LLMDescription("True, checkable, and it would hold up in writing.")
+    @LLMDescription("Would hold up under close scrutiny and follow-up questions.")
     AIRTIGHT,
 
     @LLMDescription("Not checkable, but nobody would bother.")
@@ -61,14 +60,13 @@ public data class DeclineRequest(
 )
 
 @Serializable
-@LLMDescription("A decline drafted, backed by staged evidence, and ready to send")
+@LLMDescription("A proposed decline awaiting review and human confirmation")
 public data class DeclineDeployment(
     @property:LLMDescription("Excuse flavor selected")
     val flavor: ExcuseFlavor,
     @property:LLMDescription(
-        "Calendar event id staged to back the excuse up, or null when the excuse is " +
-        "true and needs no staging. A fabrication is the only part of a plan that can " +
-        "be audited - when the reason is genuine, staging one makes the plan weaker."
+        "Id of a supporting event actually returned by a calendar tool, or null if " +
+        "none exists. Drafting a plan does not create calendar events."
     )
     val fakeCalendarEventId: String? = null,
     @property:LLMDescription("The decline message that goes to the organizer")

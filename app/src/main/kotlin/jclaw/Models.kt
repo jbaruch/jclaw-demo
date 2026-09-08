@@ -46,6 +46,6 @@ object Models {
         else -> Gemini3_7Flash
     }
 
-    /** The critic. Deliberately a stronger model than the drafter. */
+    /** Used by the standalone corporate-speak skills flourish, not the Stage 4 judge. */
     val pro: LLModel = GoogleModels.Gemini3_1Pro_Preview
 }

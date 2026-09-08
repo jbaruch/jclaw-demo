@@ -2,81 +2,120 @@ package jclaw
 
 import ai.koog.agents.cli.CliAIAgent
 import ai.koog.agents.cli.CliAgentStructuredResponse
-import ai.koog.agents.cli.transport.CliTransport
+import ai.koog.agents.cli.claude.ClaudePermissionMode
+import ai.koog.agents.cli.transport.ProcessCliTransport
 import jclaw.domain.DeclineCritique
 import jclaw.domain.DeclineDeployment
+import jclaw.domain.DeclineRequest
 import jclaw.domain.Scenario
+import kotlinx.serialization.serializer
 import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.time.Duration.Companion.minutes
 
-/**
- * The critic, running on somebody else's model entirely.
- *
- * Koog 1.1.1 added `CliAIAgent` - an agent that shells out to another vendor's
- * CLI (claude, codex) and plugs into a graph via `.asNode()`. No API key: it
- * uses whatever subscription that CLI is already logged into.
- *
- * Which makes the "don't let the model grade its own homework" argument
- * literal. Gemini drafts the excuse. Claude decides whether it would survive
- * contact with People Ops. Different company, different weights, different
- * incentives - and the handoff between them is a typed data class, so neither
- * one needs to know the other exists.
- */
-private val NO_TOOLS = """
-    {"permissions":{"deny":["Bash","Read","Edit","Write","WebFetch","WebSearch","Glob","Grep","Task","NotebookEdit"]}}
-""".trimIndent()
-
+/** Gemini identifies the obligation; subscription CLIs draft, refine, and judge. */
 object CliCritic {
+    private val claudeFlags = listOf(
+        "--safe-mode", "--strict-mcp-config", "--tools=",
+        "--no-session-persistence", "--settings", """{"forceLoginMethod":"claudeai"}""",
+    )
 
-    /**
-     * A scratch directory the CLI agent is penned into.
-     *
-     * Coding agents explore. Benchmarking this talk, grok went and read
-     * demo-spec.md off the working directory uninvited to get the answer right.
-     * Impressive, and absolutely not what you want a pipeline stage doing.
-     */
-    private val pen: String = Files.createTempDirectory("jclaw-critic").toFile().apply {
-        deleteOnExit()
-    }.absolutePath
-
-    fun claude(): CliAIAgent<DeclineDeployment, CliAgentStructuredResponse<DeclineCritique>> =
+    fun claudeDrafter(): CliAIAgent<DeclineRequest, CliAgentStructuredResponse<DeclineDeployment>> =
         CliAIAgent.claude(
-            transport = CliTransport.default(),
-            outputClass = DeclineCritique::class,
-            // apiKey stays null on purpose: that is what makes it use the subscription.
+            transport = SubscriptionCliTransport,
+            outputClass = DeclineDeployment::class,
             apiKey = null,
-            name = "hostile-reviewer",
-            workspace = pen,
-            // The critic reviews text. It has no business holding the calendar,
-            // mail and travel MCP servers this machine has configured - and
-            // `workspace` only scopes the filesystem, so it would. Asked to help
-            // with a meeting under BypassPermissions, an earlier build of round 1
-            // read a real itinerary and created a real calendar event.
-            //   --strict-mcp-config : only MCP from --mcp-config; we pass none
-            //   --settings          : and none of the built-ins either
-            // Not --tools/--disallowedTools: variadic, they swallow the prompt.
-            additionalFlags = listOf("--strict-mcp-config", "--settings", NO_TOOLS),
-            systemPrompt = "You are a hostile reviewer inside an approval pipeline. " +
-                "You do not have opinions about whether the user should attend. You only " +
-                "judge whether the plan survives scrutiny. Answer with the structured " +
-                "result and nothing else.",
-            generateRequest = { deployment: DeclineDeployment ->
+            name = "claude-drafter",
+            workspace = cliWorkspace("claude-draft").toString(),
+            timeout = 3.minutes,
+            permissionMode = ClaudePermissionMode.DontAsk,
+            additionalFlags = claudeFlags,
+            systemPrompt = Scenario.SYSTEM_PROMPT,
+            generateRequest = { request: DeclineRequest ->
                 """
-            Review this plan to get out of a mandatory corporate training session.
+                Draft the best plan to get Baruch out of this obligation. Choose a flavor,
+                write the message to the organizer, and write a brief hallway script.
+                Account for the request's recently used flavors and known attendees.
+                You are drafting only: no calendar event has been created, so set
+                fakeCalendarEventId to null. Do not claim you took any external action.
 
-            Reject it (approved = false) if ANY of these hold:
-              - the flavor is one already burned with this organizer: ${Scenario.BURNED.joinToString()}
-              - the message does not actually match the flavor it claims
-              - the staged calendar event does not cover the session time
-              - a TOUCHY organizer would check and catch it
+                CONTEXT: ${Scenario.USER_CONTEXT}
+                OBLIGATION: ${Scenario.EVENT_TITLE}
+                REQUEST: $request
+                """.trimIndent()
+            },
+        )
 
-            Prefer excuses that are literally true - those survive any amount of checking.
-            Context you should weigh: ${Scenario.USER_CONTEXT}
+    fun claudeRefiner(): CliAIAgent<String, CliAgentStructuredResponse<DeclineDeployment>> =
+        CliAIAgent.claude(
+            transport = SubscriptionCliTransport,
+            outputClass = DeclineDeployment::class,
+            apiKey = null,
+            name = "claude-refiner",
+            workspace = cliWorkspace("claude-refine").toString(),
+            timeout = 3.minutes,
+            permissionMode = ClaudePermissionMode.DontAsk,
+            additionalFlags = claudeFlags,
+            systemPrompt = Scenario.SYSTEM_PROMPT,
+            generateRequest = { feedback: String ->
+                """
+                Revise the proposed plan using the judge's feedback. Return the complete
+                revised plan. No calendar event has been created, so set
+                fakeCalendarEventId to null. Do not claim you took any external action.
 
-            Set tier to the honest PlausibilityTier. Be specific in feedback about what to fix.
+                CONTEXT: ${Scenario.USER_CONTEXT}
+                OBLIGATION: ${Scenario.EVENT_TITLE}
+                PREVIOUS PLAN AND FEEDBACK:
+                $feedback
+                """.trimIndent()
+            },
+        )
 
-                THE PLAN:
+    fun codex(): CliAIAgent<DeclineDeployment, DeclineCritique> =
+        TypedCodex.agent(
+            serializer = serializer<DeclineCritique>(),
+            systemPrompt = "You are an independent reviewer of a proposed plan. " +
+                "Assess its quality and return the requested structured result.",
+            request = { deployment: DeclineDeployment ->
+                """
+                Baruch wants to get out of this obligation. Is this the best available
+                excuse and plan for his situation? Assess the message and hallway script.
+                Set approved to true if the plan is ready for Baruch to consider sending;
+                otherwise explain what should improve. Select the appropriate tier.
+                Judge the supplied plan and context; you have no tools or external actions.
+
+                OBLIGATION: ${Scenario.EVENT_TITLE}
+                ORGANIZER: ${Scenario.ORGANIZER}
+                ATTENDEES: ${Scenario.ATTENDEES.joinToString()}
+                RECENTLY USED FLAVORS: ${Scenario.BURNED.joinToString()}
+                CONTEXT: ${Scenario.USER_CONTEXT}
+
+                PROPOSED PLAN:
                 $deployment
                 """.trimIndent()
             },
         )
+}
+
+internal fun cliWorkspace(role: String): Path =
+    Files.createTempDirectory("jclaw-$role-").also { it.toFile().deleteOnExit() }
+
+/**
+ * A null API-key argument does not remove an inherited API key. Strip API billing
+ * and alternate-provider settings while retaining each CLI's subscription login.
+ * env receives separate argv entries; no prompt or credential is sent through a shell.
+ */
+internal object SubscriptionCliTransport : ProcessCliTransport() {
+    private val removedVariables = listOf(
+        "OPENAI_API_KEY", "CODEX_API_KEY", "OPENAI_BASE_URL",
+        "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY",
+    )
+
+    override fun buildCommand(
+        command: List<String>,
+        workspace: String,
+        env: Map<String, String>,
+    ): List<String> = listOf("/usr/bin/env") +
+        removedVariables.flatMap { listOf("-u", it) } + command
 }

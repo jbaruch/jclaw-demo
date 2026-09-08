@@ -2,184 +2,183 @@
 
 IntelliJ IDEA Conf 2026 · Day 1, 15:00–16:00 CEST · Baruch (Koog) + Viktor (LangChain4j Agentic)
 
+## Preparation
 
-## Never `gradle run`. Use `./jclaw`.
+Run every command from this repository's root. The rounds are branches
+(`round1` through `round4`) sharing one `app` module. Commit stage changes before
+switching branches. Use `./jclaw N` off-camera while the other speaker is presenting.
 
-`gradle run` does not return. Measured, with and without the daemon: the app JVM
-exits, the mock JVMs exit, and Gradle sits there with three live processes until you
-Ctrl-C it. Nothing in the application can fix this — it was verified by instrumenting
-the exit path and then watching the process table while Gradle hung.
+Configure `.env` from `.env.example` before sharing the terminal. It supplies
+`GOOGLE_API_KEY` and optional Langfuse credentials. Round 4 also requires `claude`
+and `codex` on `PATH`, logged into their subscriptions. Check subscription login
+before the stream; no API key is needed for either CLI stage.
 
-Gradle's `run` task is the wrong tool for a demo. `./jclaw` builds with Gradle and
-runs the installed start script. Faster as well, for skipping Gradle startup.
-
-## Before you go live — WARM EVERY BRANCH
-
-The rounds are branches (`round1`..`round4`), one `app/src/main/kotlin/jclaw/Main.kt`
-that changes underneath you. Switch off-camera while Viktor is presenting.
-
-**The first run on a branch after a checkout recompiles.** A cold branch took over 6
-minutes; warm it is seconds. Warm all four before the stream:
+Warm every branch's build and both MCP jars before the stream:
 
 ```bash
-for b in round1 round2 round3 round4; do
-  git checkout $b && ./gradlew -q :app:installDist
+for round_branch in round1 round2 round3 round4; do
+  git switch "$round_branch" || exit
+  ./gradlew -q :app:installDist :mocks:mcpJars || exit
 done
-git checkout round1
+git switch round1
 ```
 
-Do not skip this. It is the difference between a 20-second demo and dead air.
+Use `./jclaw` to run the installed application. Earlier rehearsals observed Gradle's
+interactive `run` task hanging after the application exited. The launcher builds
+with the wrapper first; this also prevents a previous branch's installed binary
+from being used after a switch.
 
-**Use `./jclaw`, never `gradle run`.** `gradle run` never returns: the app exits
-correctly but the MCP mocks inherit Gradle's stderr and Gradle waits on it forever, so
-the terminal hangs after every successful round. `./jclaw` runs the installed start
-script instead — same work, no hang, and faster for skipping Gradle startup.
+Time the current build in the actual streaming terminal. Older all-Gemini round-4
+measurements do not establish this pipeline's runtime. Allow for subscription CLI
+startup, model calls, and up to two refinements. Each CLI call has a three-minute
+timeout; that is a failure bound, not a promise about total runtime.
 
-`./jclaw` always rebuilds. `build/` is gitignored and survives a checkout, so a
-"binary already exists" shortcut would silently run the PREVIOUS round.
-
-## Before you go live
-
-```bash
-export GOOGLE_API_KEY=...          # from vault secrets.json -> gemini.api_key
-cd ~/Projects/jclaw-ideaconf
-gradle :mocks:mcpJars              # builds calendar-mcp.jar + organizer-mcp.jar
-# (warming, above, already builds every branch)
-```
-
-Warm the Gradle daemon and the Maven cache with one throwaway `:round1-chatbot:run`
-before the stream starts. A cold first run adds ~40s of dependency resolution that
-is not interesting to watch.
+Validation on 2026-09-08: the full build and 19 deterministic tests passed (7 review/
+send-gate tests and 12 typed-adapter tests). One integrated smoke run with fresh
+seeded temporary memory took **65.0 seconds**: all three providers ran, Codex
+rejected unsupported wording, Claude refined, and Codex approved
+`ALREADY_PROFICIENT`. Human `n` held the plan and no send call occurred. This is one
+smoke observation, not a stage timing guarantee or a promised model response.
 
 ## The four rounds
 
-**Every round is a chat loop — you TYPE at it.** Blank line or ctrl-D quits.
+`./jclaw N` switches branches, starts the three-pane TUI, and copies the same opening
+ask to the clipboard. Paste it into PROMPT:
 
-| Round | Command | Per turn | What to type, and what they should see |
-|---|---|---|---|
-| 1 | `./jclaw 1` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
-| 2 | `./jclaw 2` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
-| 3 | `./jclaw 3` | ~10s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. Memory is `memory/documents/` on disk; a bare `./jclaw` re-run is a new process that knows what the first one sent. |
-| 4 | `./jclaw 4` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
-| plain | `./jclaw plain` | — | Any round on stdout instead of the TUI. Paste the sentence (it is on the clipboard); the send gate is `y`. The fallback if the TUI misbehaves. |
-| 4b | `JCLAW_NAIVE=1 ./jclaw` | ~40s | Constraint stripped. Reaches for a burned excuse. Critic catches it. |
-| 4c | `JCLAW_CRITIC=cli ./jclaw` | ~2-3m | Critic is Claude on subscription. Rejects the fabrication, argues the truth is the stronger play. Cut line. |
-| graph | `./jclaw graph` | ~1s | `pipeline.mmd` from the live strategy. |
-| 5 | `JCLAW_LEVEL=4 ./jclaw skills` / `11` | ~19s | SKILL.md read off disk and applied. |
+> Get me out of the Basic AI Proficiency Training on Tuesday, run by Dana from People Ops. Don't reuse an excuse I've already used on her - tell me which ones you're avoiding.
 
-### The cross-vendor critic (optional showpiece)
+Each round is interactive. Follow-ups go into PROMPT; use Ctrl-C to leave the TUI.
+The stdout fallback (`./jclaw plain`) exits on a blank line or Ctrl-D.
 
-`JCLAW_CRITIC=cli` swaps the critic from Gemini 3.1 Pro to **Claude Code, running on
-Baruch's subscription** via Koog 1.1.1's `CliAIAgent` — no API key anywhere in the
-config. Gemini drafts the excuse, Claude decides whether it survives People Ops, and
-the handoff between two vendors is a typed data class.
+| Round | Command | What to demonstrate |
+|---|---|---|
+| 1 | `./jclaw 1` | One factory call, no tools. Read any claimed action against those capabilities. Follow with “ok, not bad! Let's tweak it a bit.” and “what excuse did you suggest? quote it exactly.” to expose the missing conversation memory. |
+| 2 | `./jclaw 2` | Same ask with real calls to the mock MCP servers. Look for reuse of an earlier excuse: the calendar says a session was declined but cannot say why. |
+| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses. Read which flavor it chooses and whether the vocabulary matches the domain model. |
+| 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Only approval reaches the application's send confirmation. |
 
-**It takes about 4 minutes** (vs ~90s for the Gemini critic) because the CLI has
-per-invocation startup and needs extra turns to produce schema-shaped JSON. Verified
-working end to end; approved `ALREADY_PROFICIENT` on the first pass.
+Read actual output. A particular fabricated meeting, repeated excuse, new category,
+or critic objection is not guaranteed. If a model succeeds sooner, say so.
 
-Use it only if the clock is healthy, and narrate the architecture while it runs. The
-Gemini critic is the default for a reason.
+`./jclaw N` starts with the three committed prior declines and clears generated
+rehearsal memory. To show round 3 remembering its own previous send, exit and run
+bare `./jclaw`: that preserves memory across processes. Do not use `./jclaw 3` for
+that continuity beat, because it resets the rehearsal.
 
-A critic that returns nothing parseable is treated as a **rejection**, not an
-approval. Fail closed.
+## Round 4 — the core three-provider demo
 
-**The approval gate is a graph node.** After the critic approves, `approve` calls
-`awaitApproval` and blocks on you — type `y` in the terminal (or the prompt pane in the
-TUI). It is not a tool the model may skip; it always fires.
+Leave the typed contracts visible beside the terminal. The FLOW row shows
+`identify → deploy → verify ⇄ refine`.
 
-`JCLAW_AUTOSEND=1` answers it for you and skips the send gate — use it only if you are short
-on time. The gate is a talking point: the model never sends anything.
+1. Point at Gemini gathering the obligation, attendees, and prior excuse flavors.
+2. Show Claude taking a `DeclineRequest` and returning a `DeclineDeployment` through
+   the subscription CLI. It has no tools. It drafts a message and hallway script;
+   no supporting calendar event is created, and `fakeCalendarEventId` must be null.
+3. Show Codex reviewing the draft through its subscription CLI. Its question is
+   whether this is the best available excuse and plan for Baruch's situation.
+4. Read the verdict. If Codex objects to fabrication and proposes the real reason,
+   land the story: the review found honesty useful without a truthfulness question
+   or an instruction to prefer a moral answer. If it raises another objection,
+   follow that one. If it approves the first draft, report that.
+5. On rejection, follow Claude's revision and Codex's next review. After two
+   refinements, another rejection produces `Blocked`; nothing can be sent.
+6. After approval, read the exact latest plan. The TUI asks for `send`; any other
+   reply holds it. The stdout fallback asks for `y` or `yes`. Sending is owned by
+   the application after the graph returns `ReadyToSend`.
 
-## Round 4 — the A/B, in order
+A missing, malformed, failed, or timed-out Codex verdict blocks immediately. A
+human cannot override it. `JCLAW_AUTOSEND=1 ./jclaw plain` automatically confirms
+an approved plan for mock rehearsal only; it does not bypass the critic and is not
+used by the TUI. Keep it unset when demonstrating human confirmation.
 
-Run the **naive** one first if you want the critic to earn its keep on camera:
+Once a mock send succeeds, the application records the message in memory. A
+persistence error after delivery must be reported separately from a blocked send.
+If a send was attempted but its outcome is unknown, inspect the receipt/log before
+retrying.
+
+## Round 4 — context comparison
+
+Run the normal round-4 request first. Quit the TUI, then keep the same branch:
 
 ```bash
-JCLAW_NAIVE=1 ./gradlew run     # fails, critic rejects, refine fixes
-./gradlew run                   # clean, first-pass approval
+JCLAW_NAIVE=1 ./jclaw
 ```
 
-Ask the chat to predict what breaks *before* you run the naive one. It is the only
-audience-participation beat that works without a room.
+Ask the chat to predict what changes before running it. The flag removes memory
+retrieval and the extra context from Gemini's identification step; typed handoffs,
+the three providers, and the scenario facts supplied to Claude and Codex remain.
+It does not isolate the effect of typing. Read the actual difference and do not
+announce a planned failure. Quit and use bare `./jclaw` to return to normal mode.
 
-## If something dies on stage
+## Optional adapter walkthrough — the cut line
 
-- **MCP server won't start** → `gradle :mocks:mcpJars` was not run, or the jars are
-  stale. The error names the exact missing path.
-- **`GOOGLE_API_KEY is not set`** → the Gradle daemon did not inherit your export.
-  Re-export and re-run; `--no-daemon` guarantees it.
-- **Round 4 runs long** → it is bounded at 2 critic refusals and then ships the last
-  draft, printing `critic still unhappy after 2 refinements`. It cannot hang.
-- **Anything else** → round 3 is the safe fallback. It is visually similar to round 4
-  and always completes in 40s.
+All three providers already ran in the core demo. The optional beat is a code
+walkthrough, with no second cross-vendor run required:
 
-## The TUI — all four rounds, as at JNation
+- `CliCritic.kt`: Claude's typed Koog factory and subscription configuration.
+- `TypedCodex.kt`: Codex CLI already accepts `--output-schema`; the missing piece
+  is Koog's typed Codex integration. Show schema generation from the Kotlin
+  serializer, the CLI argument, and strict decoding of the final successful answer.
+- `Review.kt` and `JclawResult.kt`: explicit approval produces `ReadyToSend`;
+  rejected or unavailable verdicts cannot reach human confirmation or sending.
 
-`./jclaw N` opens every round in the TamboUI three-pane UI (chat, trace, prompt, busy
-spinner) and puts the round's opening sentence on the clipboard: paste it into PROMPT.
-Tool calls, the mock servers'
-own log lines, and memory reads and writes land in TRACE. Follow-ups are typed into
-PROMPT. Round 4's send gate is the word `send` typed into PROMPT rather than `y`;
-`JCLAW_NAIVE` and `JCLAW_CRITIC` work as usual.
+`./jclaw codex` is a standalone adapter probe for rehearsal. Skip the walkthrough
+if the clock is tight; the main pipeline already established the three-model story.
 
-The header names the round and lights one badge per feature as the rounds go: MCP,
-MEMORY, WORKFLOW. Round 4 adds a FLOW row, `identify → deploy → verify ⇄ refine`,
-driven by Koog's own subgraph events: the running stage yellow, finished ones green.
-Whatever a library prints (kotlin-logging, SLF4J) goes to `jclaw-tui.log`, not the screen.
+## Graph and Agent Skills
 
-Every round's TUI has been smoke-tested under a pseudo-terminal: panes rendered, the
-sentence asked, tool calls and replies drawn. **Drive each round once by hand in your
-actual terminal at your actual streaming font size before you rely on it.**
+After exiting the round-4 TUI:
 
-If it misbehaves on the day, `./jclaw plain` is the same round on stdout: paste the
-sentence, answer `y` at the send gate.
+```bash
+./jclaw graph
+./jclaw skills 4
+./jclaw skills 11
+```
 
-## Langfuse — every run is a trace
+Open `pipeline.mmd` in IntelliJ to render the graph generated from the live strategy.
+The human confirmation and send are application code, so do not describe an
+`approve` graph node.
 
-With `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` in `.env`,
-rounds 2-4 export to Langfuse through Koog's OpenTelemetry feature (see
-`Observability.kt`). Without them nothing is installed and nothing changes.
+The skills commands use a sample message by default. To use the actual approved
+message, set `JCLAW_MESSAGE` to that message before running them. Call the default
+a sample, even if it resembles the live result. The level is the command argument;
+`./jclaw skills 4` selects four and `./jclaw skills 11` selects eleven.
 
-What lands, per run: `create_agent j-claw` → `invoke_agent j-claw` → `strategy` →
-every subgraph, node, model call (with the messages, tokens and cost) and tool call.
-Each `./jclaw` process is one Langfuse **session**; traces are named `jclaw-roundN` and
-tagged with the round and the mode (`domain-modelled` / `naive`, `critic:gemini` /
-`critic:claude-code`), so the dashboard filters by either.
+## The TUI
 
-On stage: Langfuse → Traces → newest. The tree is the FLOW row with the receipts:
-which model, how many tokens, what it cost, what it saw. The Sessions view is the
-whole conversation. Traces arrive a second or two after the spans end; the tail of a
-run - the critic's verdict, the root - lands when the process exits, because that is
-when Koog ends those spans. Quit the TUI cleanly (ctrl-C is fine); `kill -9` loses it.
+All four rounds use CHAT, TRACE, PROMPT, and a busy status line. The header shows
+`j-claw` plus one badge per feature: MCP, MEMORY, WORKFLOW. It has no redundant round
+or stage title. Round 4's separate FLOW row remains; the active stage is yellow,
+completed stages green, and failed stages red. Gemini subgraph events and CLI stage
+callbacks drive it.
 
-## Which model, and why
+Tool calls, mock-server logs, and memory activity appear in TRACE. Library stdout
+and stderr go to `jclaw-tui.log`. Check every round at the actual streaming font
+size during rehearsal. Use `./jclaw plain` if the TUI fails.
 
-Default is **`gemini-3.7-flash`**, chosen by measuring rather than by version number.
-Same pipeline, same prompts:
+## Langfuse
 
-| model | round 4 |
-|---|---|
-| gemini-3.5-flash | 60s |
-| gemini-3.6-flash | 37s |
-| **gemini-3.7-flash** | **~20s** |
-| gemini-3.8-flash | ~30s |
+Set `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` in `.env` to
+enable traces in rounds 2–4. Without credentials the feature is not installed.
+Each process is a session, and traces are named `jclaw-roundN`. Round 4 tags include
+`domain-modelled` or `naive`, `drafter:claude-code`, and `critic:codex`.
 
-Newer is not automatically faster — 3.8 is consistently slower than 3.7 — and 3.7 was
-the only one that picked `ALREADY_PROFICIENT` on every run, naive runs included.
-Override with `JCLAW_FLASH=3.8 ./jclaw`.
+Open Traces → newest and inspect phase/model details and available token/cost data.
+CLI subscription activity does not guarantee the same detailed model spans or API
+cost reporting as Gemini calls. The TUI's stage labels identify all three providers.
+Quit cleanly so the remaining spans can close and flush before showing the trace.
 
-Koog 1.2's `GoogleModels` stops at 3.5; 3.6/3.7/3.8 are declared in `Models.kt`,
-six lines each. Worth saying out loud: the framework shipped ten days ago and already
-trails the models it talks to, and you are one declaration away from catching up.
+## If something fails
 
-## Known behaviour, not bugs
-
-- The critic usually approves round 4 on the first pass. That is the architecture
-  working — the typed handoff carries the constraint. Use `JCLAW_NAIVE=1` to show
-  the failure.
-- Gemini occasionally staged *two* calendar events in one deploy pass. Harmless; the
-  critic picks the one that covers the session.
-- `agents-cli`, `agents-mcp`, the Google client, `skills` and the memory feature are
-  all on Koog's **beta** version line (`1.2.0-beta`), not `1.2.0`. Worth saying out
-  loud — it is an honest read of where the framework is.
+- **Missing MCP jar:** run `./gradlew -q :mocks:mcpJars` from the repository root and
+  inspect the reported path. The launcher normally builds both jars.
+- **Missing Google key:** set `GOOGLE_API_KEY` in `.env`; the launcher sources it
+  before starting the installed binary.
+- **CLI login or availability failure:** check the installed CLI and subscription
+  login off-camera. A failed review must remain blocked; do not use an override.
+- **Repeated rejection:** after two refinements the result is blocked. Show that
+  the reviewer can stop the action; the last rejected draft is never sent.
+- **Round 4 exceeds the stage budget:** cut the optional adapter/context/skills
+  beats. A recorded rehearsal may illustrate a result if identified as recorded.
+- **TUI failure:** use `./jclaw plain`. An earlier round can illustrate earlier
+  capabilities, but does not demonstrate round 4's critic veto.

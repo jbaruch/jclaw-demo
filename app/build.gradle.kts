@@ -1,6 +1,8 @@
 plugins { application }
 
 dependencies {
+    testImplementation("io.kotest:kotest-runner-junit5:6.0.3")
+    testImplementation("io.kotest:kotest-assertions-core:6.0.3")
     implementation(project(":domain"))
     implementation(project(":tui"))
     implementation(libs.koog.agents)
@@ -88,3 +90,5 @@ listOf(
     }
     tasks.named<Sync>("installDist") { into("bin") { from(t) { fileMode = 493 } } }
 }
+
+tasks.test { useJUnitPlatform() }

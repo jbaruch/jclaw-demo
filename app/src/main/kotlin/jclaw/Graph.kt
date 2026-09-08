@@ -24,7 +24,6 @@ fun main(): Unit = runBlocking {
         val strategy = jclawStrategy(
             mcp = mcp,
             naive = false,
-            cliCritic = System.getenv("JCLAW_CRITIC") == "cli",
         )
         val diagram = strategy.asMermaidDiagram()
         val out = File(System.getProperty("jclaw.graph.out") ?: "pipeline.mmd")

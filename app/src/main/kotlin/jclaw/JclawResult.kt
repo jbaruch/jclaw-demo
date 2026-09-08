@@ -17,21 +17,20 @@ public data class ClassifiedInput(
 @Serializable
 public enum class Intent { EXCUSE_REQUEST, CHAT }
 
-/**
- * Both branches of the graph converge here, so the agent can stay alive between
- * prompts instead of exiting after one excuse.
- */
+/** Only ReadyToSend can reach the application's human confirmation and send path. */
 public sealed interface JclawResult {
-    /**
-     * @param criticApproved false when the loop ran out of refinements and shipped the
-     *   last draft anyway. The distinction has to survive to the UI: a talk about
-     *   verification cannot print "the critic approved this" over a draft the critic
-     *   rejected three times.
-     */
-    public data class ExcuseSent(
-        val deployment: DeclineDeployment,
-        val criticApproved: Boolean,
-    ) : JclawResult
-
+    public data class ReadyToSend(val deployment: DeclineDeployment) : JclawResult
+    public data class Blocked(val reason: String, val deployment: DeclineDeployment? = null) : JclawResult
     public data class ChatReply(val text: String) : JclawResult
+}
+
+/** The application owns the external action. Neither rejection nor a human 'no' can send. */
+suspend fun deliverApproved(
+    result: JclawResult,
+    confirm: suspend (DeclineDeployment) -> Boolean,
+    send: suspend (DeclineDeployment) -> Unit,
+): Boolean {
+    if (result !is JclawResult.ReadyToSend || !confirm(result.deployment)) return false
+    send(result.deployment)
+    return true
 }

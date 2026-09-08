@@ -1,179 +1,103 @@
 package jclaw
 
-import ai.koog.agents.cli.asNode
-import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
-import ai.koog.agents.ext.agent.subgraphWithTask
-import ai.koog.agents.ext.agent.subgraphWithVerification
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
-import jclaw.Observability.langfuse
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.embeddings.local.LLMEmbedder
 import ai.koog.prompt.executor.clients.google.GoogleLLMClient
 import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
-import jclaw.domain.DeclineDeployment
-import jclaw.domain.DeclineRequest
+import jclaw.Observability.langfuse
 import jclaw.domain.Scenario
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.system.exitProcess
-import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * ROUND 4 - the domain-modelled pipeline.
- *
- * Rounds 1-3 were one agent having one conversation. This is three typed
- * subtasks handing each other DATA, with a critic in the loop:
- *
- *   identify -> deploy -> verify --(approved)--> done
- *                  ^                 |
- *                  +----- refine <---+ (rejected, with feedback)
- *
- * Each phase gets its own model and its own slice of tools. `deploy` has no
- * way to reach a human at all. And the critic is not the phase that wrote the
- * plan - you do not let the model that drafted the excuse grade it.
- *
- * The send is deliberately NOT in the graph. It is the one irreversible act
- * here, so the application performs it, after a human says yes.
- */
+/** Gemini gathers context, Claude drafts/refines, Codex judges. The app owns sending. */
 fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
-
+    val naive = System.getenv("JCLAW_NAIVE") == "1"
+    val autoSend = System.getenv("JCLAW_AUTOSEND") == "1"
     Mcp.boot("calendar-mcp", "organizer-mcp").use { mcp ->
-        val slices = Slices(mcp.registry)
-        // Memory is a directory on disk: memory/documents/, three committed prior declines.
-        // Round 4 knows which flavor it used, so what it files after a send is typed, not prose.
         val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
-
-        // JCLAW_NAIVE=1 strips the typed constraint out of the handoff: identify stops
-        // reporting which flavors are burned, and nobody tells deploy about Baruch's day
-        // job. The pipeline shape is identical. Only the DATA is poorer - which is the
-        // entire argument, and you can watch the critic start earning its keep.
-        val naive = System.getenv("JCLAW_NAIVE") == "1"
-        // JCLAW_CRITIC=cli hands the review to Claude Code on Baruch's subscription,
-        // via Koog 1.1.1's CliAIAgent. Gemini drafts, Claude judges. Different vendor,
-        // different weights - and the handoff between them is a typed data class.
-        val cliCritic = System.getenv("JCLAW_CRITIC") == "cli"
-        val context = if (naive) "" else Scenario.USER_CONTEXT + "\n"
-        println(if (naive) "[mode] NAIVE - typed constraint removed from the handoff"
-                else       "[mode] DOMAIN-MODELLED - constraint travels in the typed handoff")
-        println(if (cliCritic) "[critic] Claude Code via CliAIAgent (subscription, no API key)"
-                else           "[critic] Gemini 3.1 Pro")
-
-        // Same UserTools, backed by stdin instead of a prompt pane. JCLAW_AUTOSEND
-        // answers for you so unattended runs do not block.
-        val autoSend = System.getenv("JCLAW_AUTOSEND") == "1"
-        // RENDEZVOUS on purpose: the feeder below suspends until a tool actually
-        // asks. An UNLIMITED channel turns `while (true) send(...)` into an
-        // allocating spin that starves the agent - which is exactly what it did.
-        val reactions = Channel<String>(Channel.RENDEZVOUS)
-        val userTools = UserTools(
-            outbound = { line -> println(line) },
-            reactions = reactions,
-        )
-        // Keep the handle: a live feeder keeps runBlocking alive and the process
-        // never exits, which on stage looks like a hang after a successful run.
-        val feeder = if (autoSend) {
-            launch(Dispatchers.IO) { while (true) reactions.send("y") }
-        } else {
-            launch(Dispatchers.IO) { while (true) reactions.send(readlnOrNull() ?: "n") }
-        }
-
-        val jclawStrategy = jclawStrategy(mcp, naive, cliCritic, userTools)
-
-        val jclaw = AIAgent(
-            id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
+        println("[mode] " + if (naive) "NAIVE - less context and no memory" else "DOMAIN-MODELLED")
+        println("[models] ${Models.flash.id} identifies; Claude subscription drafts/refines; Codex subscription judges")
+        val agent = AIAgent(
+            id = "j-claw",
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
-                prompt = Scenario.SYSTEM_PROMPT,
-                llm = Models.flash,
-                maxAgentIterations = 200,
+                prompt = Scenario.SYSTEM_PROMPT, llm = Models.flash, maxAgentIterations = 200,
             ),
-            strategy = jclawStrategy,
+            strategy = jclawStrategy(
+                mcp, naive,
+                onStage = { stage, model, state -> println("[$stage] $model - $state") },
+                onVerdict = ::println,
+            ),
             toolRegistry = mcp.registry,
         ) {
-
-            // Real traces, when there is somewhere to send them: see Observability.
             if (Observability.enabled) install(OpenTelemetry) {
                 langfuse(
-                    round = 4,
-                    if (naive) "naive" else "domain-modelled",
-                    if (cliCritic) "critic:claude-code" else "critic:gemini",
-                    metadata = mapOf("model" to Models.flash.id, "critic" to if (cliCritic) "claude-code" else Models.pro.id),
+                    4, if (naive) "naive" else "domain-modelled", "critic:codex", "drafter:claude-code",
+                    metadata = mapOf("model" to Models.flash.id, "drafter" to "claude-code", "critic" to "codex"),
                 )
             }
             if (!naive) install(LongTermMemory) {
-                retrieval {
-                    storage = memory
-                    searchStrategy = SimilaritySearchStrategy(topK = 5)
+                retrieval { storage = memory; searchStrategy = SimilaritySearchStrategy(topK = 5) }
+            }
+            handleEvents { onToolCallStarting { println("      tool ${it.toolName}") } }
+        }
+        try {
+            println("\nj-claw. Ask for a plan or a follow-up. Blank line or ctrl-D quits.\n")
+            while (true) {
+                print("you: ")
+                val line = readlnOrNull()?.trim()
+                if (line.isNullOrEmpty()) break
+                var deliveryAttempted = false
+                try {
+                    val result = agent.run(line)
+                    when (result) {
+                        is JclawResult.ChatReply -> println("j-claw: ${result.text}")
+                        is JclawResult.Blocked -> println("BLOCKED: ${result.reason}\nNothing was sent. There is no send override.")
+                        is JclawResult.ReadyToSend -> {
+                            val plan = result.deployment
+                            println("=== CODEX APPROVED THIS PLAN ===")
+                            println("flavor: ${plan.flavor}\nmessage: ${plan.messageToOrganizer}\nhallway: ${plan.hallwayScript}")
+                            val sent = deliverApproved(result,
+                                confirm = {
+                                    print("Send it? [y/N] ")
+                                    if (autoSend) { println("y (mock rehearsal)"); true }
+                                    else readlnOrNull()?.trim()?.lowercase() in setOf("y", "yes")
+                                },
+                                send = {
+                                    deliveryAttempted = true
+                                    val receipt = mcp.call("organizer-mcp", "sendDecline",
+                                        mapOf("eventId" to Scenario.EVENT_ID, "message" to it.messageToOrganizer))
+                                    println("sent: $receipt")
+                                    try {
+                                        memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, it.flavor.name, it.messageToOrganizer)))
+                                    } catch (error: Exception) {
+                                        println("Delivered, but could not save to memory: ${error.message}")
+                                    }
+                                },
+                            )
+                            if (!sent) println("held. Nothing was sent.")
+                        }
+                    }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (error: Exception) {
+                    if (deliveryAttempted) println("Delivery attempt failed: ${error.message}. Check the organizer receipt before retrying.")
+                    else println("BLOCKED: ${error.message}\nNothing was sent.")
                 }
-            }
-            handleEvents {
-                onToolCallStarting { println("      tool  ${it.toolName}") }
-            }
-        }
-
-        println()
-        println("j-claw. Ask it for something, then ask a follow-up. (blank line or ctrl-D to quit)")
-        println()
-
-        while (true) {
-            print("you: ")
-            val line = readlnOrNull()?.trim()
-            if (line.isNullOrEmpty()) break
-            println()
-
-            val result = jclaw.run(line)
-            if (result is JclawResult.ChatReply) {
-                println("j-claw: ${result.text}")
                 println()
-                continue
             }
-            val sent = result as JclawResult.ExcuseSent
-            val plan = sent.deployment
-
-            println(
-                if (sent.criticApproved) "=== THE CRITIC APPROVED THIS ==="
-                else "=== THE CRITIC NEVER APPROVED THIS - last draft, shipped on your call ==="
-            )
-            println("flavor:  ${plan.flavor}")
-            println("alibi:   " + (plan.fakeCalendarEventId ?: "none - the reason is true, nothing staged"))
-            println("message: ${plan.messageToOrganizer}")
-            println("hallway: ${plan.hallwayScript}")
-
-            print("\nSend it? [y/N] ")
-            val answer = reactions.receive().trim().lowercase()
-            if (autoSend) println("y (JCLAW_AUTOSEND)")
-            if (answer.startsWith("y")) {
-                val receipt = mcp.call(
-                    server = "organizer-mcp",
-                    tool = "sendDecline",
-                    args = mapOf("eventId" to Scenario.EVENT_ID, "message" to plan.messageToOrganizer),
-                )
-                println("sent: $receipt")
-                memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, plan.flavor.name, plan.messageToOrganizer)))
-            } else {
-                println("held. nothing was sent.")
-            }
-            println()
+        } finally {
+            agent.close()
+            Observability.flush()
+            mcp.close()
         }
-        feeder.cancel()
-        // Closing ends the spans Koog still holds; the flush ships them (see Observability).
-        // Before the mocks die, so the last spans still have somewhere to go.
-        jclaw.close()
-        Observability.flush()
-        mcp.close()
-        // The MCP stdio transport leaves a non-daemon reader thread alive that survives
-        // both Client.close() and Process.destroy(), so the JVM will not exit on its own.
-        // This is a CLI that has finished its job; on stage a hung terminal after a
-        // successful run reads as a broken demo. Exit deliberately.
         exitProcess(0)
     }
 }

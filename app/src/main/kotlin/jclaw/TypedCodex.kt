@@ -2,117 +2,151 @@ package jclaw
 
 import ai.koog.agents.cli.CliAIAgent
 import ai.koog.agents.cli.transport.CliEvent
-import ai.koog.agents.cli.transport.CliTransport
+import ai.koog.prompt.executor.clients.openai.base.structure.OpenAIStandardJsonSchemaGenerator
+import ai.koog.prompt.structure.json.JsonStructure
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.SerialKind
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.KSerializer
 import java.nio.file.Files
+import kotlin.time.Duration.Companion.minutes
 
 /**
- * Typed output from Codex, which Koog does not support.
- *
- * `agents-cli` ships four `claude(...)` overloads and only two `codex(...)` ones -
- * the typed pair exists for Claude and not for Codex. So a pipeline that hands
- * typed data between stages can use Claude and cannot use Codex.
- *
- * That is a gap, not a wall. `CliAIAgent.builder(transport)` is the seam: give it a
- * binary, the flags to run it, how to turn input into a prompt, and how to read the
- * output back. Roughly thirty lines and Codex becomes a typed stage like any other.
- *
- * Worth doing on stage precisely because it is unglamorous: a framework ten days old
- * has holes, and the interesting question is whether it left you somewhere to stand.
+ * Koog has typed Claude CLI overloads, but only untyped Codex overloads.
+ * Codex itself DOES support a schema: this adapter connects Koog's serializer to
+ * `codex exec --output-schema`, then parses the final successful turn as O.
  */
 object TypedCodex {
-
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-
-    /** Coding agents read their working directory. Give them an empty one. */
-    private val pen: String = Files.createTempDirectory("jclaw-codex")
-        .toFile().apply { deleteOnExit() }.absolutePath
+    private val json = Json // Strict JSON: unknown fields and malformed values fail.
 
     fun <I : Any, O : Any> agent(
         serializer: KSerializer<O>,
         systemPrompt: String,
         request: (I) -> String,
-    ): CliAIAgent<I, O> =
-        CliAIAgent.builder(CliTransport.default())
+    ): CliAIAgent<I, O> {
+        val pen = cliWorkspace("codex")
+        val schemaFile = Files.createTempFile(pen, "response-", ".schema.json")
+            .toFile().apply { deleteOnExit() }
+        schemaFile.writeText(schema(serializer).toString())
+
+        return CliAIAgent.builder(SubscriptionCliTransport)
             .custom<I, O>()
             .binaryPath("codex")
-            .name("codex-typed")
-            .workspace(pen)
-            .systemPrompt(systemPrompt)
+            .name("codex-typed-judge")
+            .workspace(pen.toString())
+            .timeout(3.minutes)
             .flags { _, _ ->
                 listOf(
-                    "exec",                    // non-interactive
-                    "--json",                  // one JSON event per line on stdout
-                    "--skip-git-repo-check",   // the workspace is a temp dir, not a repo
-                )
+                    "exec", "--json", "--skip-git-repo-check", "--ephemeral",
+                    "--ignore-user-config", "--ignore-rules",
+                    "--sandbox", "read-only",
+                    "-c", "approval_policy=\"never\"",
+                    "-c", "forced_login_method=\"chatgpt\"",
+                    "-c", "project_doc_max_bytes=0",
+                    "-c", "web_search=\"disabled\"",
+                    "--enable", "skip_host_skill_discovery",
+                    "--output-schema", schemaFile.absolutePath,
+                ) + disabledFeatures.flatMap { listOf("--disable", it) }
             }
-            // Here is the actual difference between "supported" and "not supported".
-            //
-            // Koog's claude() typed overload passes `--json-schema` and the CLI enforces
-            // it. Codex has no such flag, so the first attempt came back confidently
-            // shaped as {"status":"DRAFT_ONLY","reason":...} - valid JSON, invented
-            // schema, useless. The model was never told what shape to produce.
-            //
-            // So describe the shape in the prompt. One flag over there, one paragraph
-            // here. Codex also ignores system prompts, so that gets folded in too.
             .generateRequest { input: I ->
-                buildString {
-                    appendLine(systemPrompt)
-                    appendLine()
-                    appendLine(request(input))
-                    appendLine()
-                    appendLine("Return JSON with EXACTLY these fields and nothing else:")
-                    appendLine(describe(serializer.descriptor))
-                    append("Reply with ONLY that JSON object. No prose, no markdown fence.")
-                }
+                // Custom builders don't map system messages to Codex flags.
+                "$systemPrompt\n\n${request(input)}"
             }
-            .extractOutput { events, logger ->
-                events.filterIsInstance<CliEvent.Failed>().firstOrNull()?.let {
-                    error("codex failed: ${it.message}")
-                }
-
-                // --json gives one event per line; the model's text arrives in
-                // item.completed events. Take the last one that parses as our type.
-                val texts = events.filterIsInstance<CliEvent.Stdout>()
-                    .mapNotNull { runCatching { json.parseToJsonElement(it.content).jsonObject }.getOrNull() }
-                    .filter { it["type"]?.jsonPrimitive?.content == "item.completed" }
-                    .mapNotNull { it["item"]?.jsonObject?.get("text")?.jsonPrimitive?.content }
-
-                texts.asReversed().firstNotNullOfOrNull { text ->
-                    runCatching { json.decodeFromString(serializer, text.trimFence()) }.getOrNull()
-                } ?: error(
-                    "codex returned nothing parseable as ${serializer.descriptor.serialName}. " +
-                        "Last text was: ${texts.lastOrNull()?.take(200)}"
-                ).also { logger.warn { "codex typed extraction failed" } }
-            }
+            .extractOutput { events, _ -> extract(serializer, events) }
             .build()
+    }
 
-    /**
-     * A compact shape description from the serializer, so the prompt and the type
-     * cannot drift apart. Add a field to the data class and the prompt updates itself.
-     */
-    private fun describe(d: kotlinx.serialization.descriptors.SerialDescriptor): String =
-        (0 until d.elementsCount).joinToString("\n") { i ->
-            val e = d.getElementDescriptor(i)
-            val type = when {
-                e.kind == kotlinx.serialization.descriptors.SerialKind.ENUM ->
-                    "one of [" + (0 until e.elementsCount).joinToString(", ") { e.getElementName(it) } + "]"
-                e.serialName.startsWith("kotlin.collections.List") -> "array"
-                e.serialName == "kotlin.String" -> "string"
-                e.serialName == "kotlin.Boolean" -> "boolean"
-                else -> e.serialName.substringAfterLast('.')
-            }
-            val nullable = if (e.isNullable) ", or null" else ""
-            "  \"${d.getElementName(i)}\": $type$nullable"
+    internal fun <O> schema(serializer: KSerializer<O>): JsonObject =
+        JsonStructure.create(
+            serializer = serializer,
+            json = json,
+            schemaGenerator = OpenAIStandardJsonSchemaGenerator,
+        ).schema.schema
+
+    /** Never recover an earlier parseable message after a failed final answer. */
+    internal fun <O> extract(serializer: KSerializer<O>, events: List<CliEvent>): O {
+        events.filterIsInstance<CliEvent.Failed>().firstOrNull()?.let {
+            error("Codex failed: ${it.message}")
         }
+        val exit = events.filterIsInstance<CliEvent.Exit>().lastOrNull()
+        check(exit?.code == 0) { "Codex did not exit successfully (exit ${exit?.code})." }
 
-    /** Models fence JSON even when told not to. Strip it rather than fail. */
-    private fun String.trimFence(): String = trim()
-        .removePrefix("```json").removePrefix("```")
-        .removeSuffix("```")
-        .trim()
+        val output = events.filterIsInstance<CliEvent.Stdout>()
+            .filter { it.content.isNotBlank() }
+            .map { json.parseToJsonElement(it.content).jsonObject }
+        val turnStart = output.indexOfLast { it.type() == "turn.started" }
+        check(turnStart >= 0) { "Codex returned no started turn." }
+        val turn = output.drop(turnStart + 1)
+        // Startup notices can use item.type=error before turn.started. Once a turn
+        // starts, an error must not be hidden by an earlier parseable answer.
+        turn.firstOrNull {
+            it.type() == "turn.failed" || it.type() == "error" ||
+                (it["item"] as? JsonObject)?.type() == "error"
+        }?.let {
+            error("Codex reported a failed turn: ${it.toString().take(300)}")
+        }
+        check(turn.lastOrNull()?.type() == "turn.completed") {
+            "Codex returned no completed final turn."
+        }
+        val finalText = turn.asSequence()
+            .filter { it.type() == "item.completed" }
+            .mapNotNull { it["item"] as? JsonObject }
+            .filter { it.type() == "agent_message" }
+            .lastOrNull()
+            ?.get("text")?.jsonPrimitive?.content
+            ?: error("Codex completed without a final agent message.")
+
+        val value = json.parseToJsonElement(finalText)
+        validateShape(serializer.descriptor, value)
+        return json.decodeFromJsonElement(serializer, value)
+    }
+
+    // kotlinx.serialization accepts quoted booleans and numbers even in its default
+    // mode. Check JSON types and required fields before decoding into a decision.
+    private fun validateShape(descriptor: SerialDescriptor, value: JsonElement) {
+        if (value == JsonNull) {
+            require(descriptor.isNullable) { "Unexpected null for ${descriptor.serialName}." }
+            return
+        }
+        when (val kind = descriptor.kind) {
+            StructureKind.CLASS, StructureKind.OBJECT -> {
+                require(value is JsonObject) { "Expected object for ${descriptor.serialName}." }
+                val fields = (0 until descriptor.elementsCount).map(descriptor::getElementName)
+                require(value.keys == fields.toSet()) { "Fields do not match ${descriptor.serialName}." }
+                fields.forEachIndexed { index, field ->
+                    validateShape(descriptor.getElementDescriptor(index), value.getValue(field))
+                }
+            }
+            StructureKind.LIST -> {
+                require(value is JsonArray) { "Expected array for ${descriptor.serialName}." }
+                value.forEach { validateShape(descriptor.getElementDescriptor(0), it) }
+            }
+            is PrimitiveKind, SerialKind.ENUM -> {
+                require(value is JsonPrimitive) { "Expected primitive for ${descriptor.serialName}." }
+                val stringType = kind == PrimitiveKind.STRING || kind == PrimitiveKind.CHAR || kind == SerialKind.ENUM
+                require(value.isString == stringType) { "Wrong JSON type for ${descriptor.serialName}." }
+            }
+            else -> error("Unsupported typed CLI output: ${descriptor.serialName} ($kind).")
+        }
+    }
+
+    private fun JsonObject.type(): String? = this["type"]?.jsonPrimitive?.content
+
+    // The critic only evaluates supplied text. Disable the installed CLI's tool
+    // providers as well as ignoring user config, which can contain live MCP servers.
+    private val disabledFeatures = listOf(
+        "shell_tool", "unified_exec", "apps", "plugins", "remote_plugin", "hooks",
+        "multi_agent", "multi_agent_v2", "browser_use", "browser_use_external",
+        "computer_use", "image_generation", "code_mode", "code_mode_host",
+        "skill_search", "memories", "view_image", "goals", "sleep_tool",
+    )
 }
