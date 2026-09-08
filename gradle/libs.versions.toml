@@ -18,6 +18,7 @@ koog-google      = { module = "ai.koog:prompt-executor-google-client", version.r
 koog-llms-all    = { module = "ai.koog:prompt-executor-llms-all",      version.ref = "koogBeta" }
 koog-mcp         = { module = "ai.koog:agents-mcp",                    version.ref = "koogBeta" }
 koog-memory      = { module = "ai.koog:agents-features-longterm-memory", version.ref = "koogBeta" }
+koog-otel        = { module = "ai.koog:agents-features-opentelemetry",   version.ref = "koog" }
 koog-skills      = { module = "ai.koog:skills",                          version.ref = "koogBeta" }
 koog-agents-ext  = { module = "ai.koog:agents-ext",                      version.ref = "koogBeta" }
 tamboui-toolkit  = { module = "dev.tamboui:tamboui-toolkit",       version.ref = "tamboui" }
@@ -28,6 +29,7 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 sqlite-jdbc      = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 mcp-server       = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
 slf4j-nop        = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+slf4j-simple     = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
