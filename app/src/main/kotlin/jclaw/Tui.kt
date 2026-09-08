@@ -91,7 +91,7 @@ fun main(args: Array<String>) {
                     })
                     if (state == PipelineStageState.STARTED) tui.startBusy() else tui.stopBusy()
                 },
-                onVerdict = { tui.chat(it, ChatKind.JCLAW) },
+                onReview = { tui.chat(it.chatText(), ChatKind.JCLAW) },
             ),
             toolRegistry = mcp.registry + skills.registry,
         ) {

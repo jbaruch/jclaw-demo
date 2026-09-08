@@ -37,7 +37,7 @@ fun main(): Unit = runBlocking {
             strategy = jclawStrategy(
                 mcp, naive, skills,
                 onStage = { stage, model, state -> println("[$stage] $model - $state") },
-                onVerdict = ::println,
+                onReview = { println("\n${it.chatText()}\n") },
             ),
             toolRegistry = mcp.registry + skills.registry,
         ) {

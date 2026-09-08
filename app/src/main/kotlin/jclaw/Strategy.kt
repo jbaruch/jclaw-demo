@@ -25,7 +25,7 @@ fun jclawStrategy(
     naive: Boolean,
     skills: AgentSkills = AgentSkills.EMPTY,
     onStage: (String, String, PipelineStageState) -> Unit = { _, _, _ -> },
-    onVerdict: (String) -> Unit = {},
+    onReview: (ReviewEvent) -> Unit = {},
 ): AIAgentGraphStrategy<String, JclawResult> {
     val slices = Slices(mcp.registry)
     val context = if (naive) "" else Scenario.USER_CONTEXT + "\n"
@@ -46,8 +46,9 @@ fun jclawStrategy(
 
     return strategy<String, JclawResult>("j-claw") {
         val turnMessages = createStorageKey<List<Message>>("conversation-turn")
-        val turnVerdicts = createStorageKey<List<String>>("conversation-verdicts")
+        val turnReviewMessages = createStorageKey<List<String>>("conversation-review-messages")
         val beginTurn by node<String, String> { input ->
+            storage.set(turnReviewMessages, emptyList())
             llm.writeSession {
                 appendPrompt { user(input) }
                 storage.set(turnMessages, prompt.messages)
@@ -80,11 +81,13 @@ fun jclawStrategy(
         }
         val verify by node<ReviewAttempt, ReviewDecision> { attempt ->
             try {
-                val critique = cliStage("verify", "Codex (subscription)") { judge.run(attempt.plan) }
-                val verdict = "Codex ${if (critique.approved) "approved" else "rejected"}: ${critique.feedback}"
-                onVerdict(verdict)
-                storage.set(turnVerdicts, storage.get(turnVerdicts).orEmpty() + verdict)
-                reviewDecision(attempt, critique)
+                attempt.review(
+                    onEvent = { event ->
+                        onReview(event)
+                        storage.set(turnReviewMessages, storage.get(turnReviewMessages).orEmpty() + event.chatText())
+                    },
+                    judge = { plan -> cliStage("verify", "Codex (subscription)") { judge.run(plan) } },
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -107,11 +110,11 @@ fun jclawStrategy(
             // Persist the actual exchange, including CLI-produced drafts, through ChatMemory.
             // Classifier/worker instructions and finalize-task JSON are internal to this run.
             val exchange = storage.getValue(turnMessages)
-            val verdicts = storage.get(turnVerdicts).orEmpty()
+            val reviewMessages = storage.get(turnReviewMessages).orEmpty()
             llm.writeSession {
                 prompt = prompt.withMessages { exchange }
                 appendPrompt {
-                    verdicts.forEach { assistant(it) }
+                    reviewMessages.forEach { assistant(it) }
                     assistant(result.conversationText())
                 }
             }
