@@ -11,6 +11,7 @@ import io.opentelemetry.kotlin.tracing.export.SpanProcessor
 import io.opentelemetry.kotlin.tracing.data.SpanData
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import io.opentelemetry.kotlin.tracing.export.batchSpanProcessor
@@ -25,9 +26,10 @@ import kotlin.time.Duration.Companion.seconds
  * LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY and LANGFUSE_BASE_URL come from .env via
  * ./jclaw. Absent, nothing is installed and the demo never depends on a network
  * service being up. Present, every agent run becomes a trace: the strategy, each
- * subgraph and node, every model call with its messages and token counts, every
- * tool call. Koog's OpenTelemetry feature emits them, with the span attributes
- * Langfuse's Agent Graph needs.
+ * subgraph and node, Gemini model calls with their messages and reported token
+ * counts, and tools invoked through Koog. Subscription CLI stages are node spans
+ * with typed input/output and provider metadata; they do not report token prices.
+ * Human confirmation, delivery and memory writes happen outside the agent trace.
  *
  * The attributes below ride on EVERY span, which is what Langfuse asks of
  * OpenTelemetry instrumentation: one session per ./jclaw process, so the Sessions
@@ -62,7 +64,7 @@ object Observability {
         override suspend fun export(telemetry: List<SpanData>): OperationResultCode {
             inFlight.incrementAndGet(); lastActivity.set(System.nanoTime())
             try {
-                return delegate.export(telemetry).also { if (it == OperationResultCode.Success) spansShipped.addAndGet(telemetry.size) }
+                return delegate.export(telemetry.map(::withLangfuseNodeDetails)).also { if (it == OperationResultCode.Success) spansShipped.addAndGet(telemetry.size) }
             } finally {
                 inFlight.decrementAndGet(); lastActivity.set(System.nanoTime())
             }
@@ -128,4 +130,43 @@ object Observability {
     val spansShipped: Int get() = exporter?.spansShipped?.get() ?: 0
 
     private fun env(name: String): String = requireNotNull(System.getenv(name)) { "$name is not set" }
+}
+
+/** Keep Koog's trace tree and timings while exposing typed handoffs in Langfuse's I/O tabs. */
+@OptIn(ExperimentalApi::class)
+internal fun withLangfuseNodeDetails(span: SpanData): SpanData {
+    val node = span.attributes["koog.node.id"] as? String ?: return span
+    val extra = buildMap<String, Any> {
+        (span.attributes["koog.node.input"] as? String)?.let { put("langfuse.observation.input", it) }
+        (span.attributes["koog.node.output"] as? String)?.let { put("langfuse.observation.output", it) }
+        val provider = when (node) {
+            "deploy", "refine" -> "anthropic"
+            "verify" -> "openai"
+            else -> null
+        }
+        if (provider != null) {
+            put("langfuse.observation.metadata.provider", provider)
+            put("langfuse.observation.metadata.client", if (node == "verify") "codex" else "claude-code")
+            put("langfuse.observation.metadata.authentication", "subscription")
+            put("langfuse.observation.metadata.role", when (node) {
+                "deploy" -> "drafter"
+                "refine" -> "refiner"
+                else -> "judge"
+            })
+        }
+        if (node == "verify") {
+            // This uses the same helper as execution, not a reconstructed paraphrase.
+            // CLI-added instructions and private reasoning are not part of this field.
+            val attempt = (span.attributes["koog.node.input"] as? String)?.let {
+                runCatching { Json.decodeFromString<ReviewAttempt>(it) }.getOrNull()
+            }
+            attempt?.let {
+                put("langfuse.observation.metadata.application_prompt", CliCritic.codexPrompt(it.plan))
+                put("langfuse.observation.metadata.review_attempt", it.refinements + 1)
+            }
+        }
+    }
+    return object : SpanData by span {
+        override val attributes: Map<String, Any> = span.attributes + extra
+    }
 }

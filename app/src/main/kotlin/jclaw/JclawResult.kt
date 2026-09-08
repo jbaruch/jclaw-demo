@@ -18,9 +18,13 @@ public data class ClassifiedInput(
 public enum class Intent { EXCUSE_REQUEST, CHAT }
 
 /** Only ReadyToSend can reach the application's human confirmation and send path. */
+@Serializable
 public sealed interface JclawResult {
+    @Serializable
     public data class ReadyToSend(val deployment: DeclineDeployment) : JclawResult
+    @Serializable
     public data class Blocked(val reason: String, val deployment: DeclineDeployment? = null) : JclawResult
+    @Serializable
     public data class ChatReply(val text: String) : JclawResult
 }
 

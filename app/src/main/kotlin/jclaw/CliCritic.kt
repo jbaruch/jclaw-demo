@@ -71,29 +71,36 @@ object CliCritic {
             },
         )
 
+    internal const val CODEX_SYSTEM_PROMPT = "You are an independent reviewer of a proposed plan. " +
+        "Assess its quality and return the requested structured result."
+
+    internal fun codexRequest(deployment: DeclineDeployment): String =
+        """
+        Baruch wants to get out of this obligation. Is this the best available
+        excuse and plan for his situation? Assess the message and hallway script.
+        Set approved to true if the plan is ready for Baruch to consider sending;
+        otherwise explain what should improve. Select the appropriate tier.
+        Judge the supplied plan and context; you have no tools or external actions.
+
+        OBLIGATION: ${Scenario.EVENT_TITLE}
+        ORGANIZER: ${Scenario.ORGANIZER}
+        ATTENDEES: ${Scenario.ATTENDEES.joinToString()}
+        RECENTLY USED FLAVORS: ${Scenario.BURNED.joinToString()}
+        CONTEXT: ${Scenario.USER_CONTEXT}
+
+        PROPOSED PLAN:
+        $deployment
+        """.trimIndent()
+
+    /** The app-supplied prompt, before Codex adds its own CLI instructions. */
+    internal fun codexPrompt(deployment: DeclineDeployment): String =
+        "$CODEX_SYSTEM_PROMPT\n\n${codexRequest(deployment)}"
+
     fun codex(): CliAIAgent<DeclineDeployment, DeclineCritique> =
         TypedCodex.agent(
             serializer = serializer<DeclineCritique>(),
-            systemPrompt = "You are an independent reviewer of a proposed plan. " +
-                "Assess its quality and return the requested structured result.",
-            request = { deployment: DeclineDeployment ->
-                """
-                Baruch wants to get out of this obligation. Is this the best available
-                excuse and plan for his situation? Assess the message and hallway script.
-                Set approved to true if the plan is ready for Baruch to consider sending;
-                otherwise explain what should improve. Select the appropriate tier.
-                Judge the supplied plan and context; you have no tools or external actions.
-
-                OBLIGATION: ${Scenario.EVENT_TITLE}
-                ORGANIZER: ${Scenario.ORGANIZER}
-                ATTENDEES: ${Scenario.ATTENDEES.joinToString()}
-                RECENTLY USED FLAVORS: ${Scenario.BURNED.joinToString()}
-                CONTEXT: ${Scenario.USER_CONTEXT}
-
-                PROPOSED PLAN:
-                $deployment
-                """.trimIndent()
-            },
+            systemPrompt = CODEX_SYSTEM_PROMPT,
+            request = ::codexRequest,
         )
 }
 
