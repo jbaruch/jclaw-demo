@@ -2,69 +2,119 @@
 
 The Koog side of *Codepocalypse Now: LangChain4j vs JetBrains Koog*.
 
-j-claw is a personal agent that gets you out of **Basic AI Proficiency Training
-(Mandatory)**, run by Dana from People Ops. It does not merely decline: it stages
-a calendar event to back the story up, calibrates to how much scrutiny Dana
-applies, and writes you a hallway script for when she asks about it tomorrow.
+j-claw is Baruch's personal assistant. The user supplies the task; the shared demo
+asks it to get him out of **Basic AI Proficiency Training (Mandatory)**, run by
+Dana from People Ops. Across four rounds it acquires tools, memory, skills, and a
+reviewed plan. In round 4 Gemini gathers the context, Claude drafts
+and refines through a subscription CLI, and Codex judges through a subscription CLI.
+The application offers to send only after Codex approves.
 
 Built against **Koog 1.2.0**, released 2026-08-28.
 
-## Modules
+## Branches and modules
 
 | Branch | Round | What it adds |
 |---|---|---|
-| `round1` | 1 | One `AIAgent(...)` factory call |
-| `round2` | 2 | Tool registry from two MCP servers. Acts — and reuses a burned excuse |
-| `round3` | 3 | Koog `LongTermMemory` over a directory on disk: three committed prior declines in `memory/documents/`, and every decline it sends filed next to them. Stops repeating itself |
-| `round4` | 4 | `subgraphWithTask` / `subgraphWithVerification`, tools sliced by capability, critic, approval node |
+| `round1` | 1 | One `AIAgent(...)` factory call; no tools or conversation memory |
+| `round2` | 2 | Tool registry from two mock MCP servers; can act, but cannot remember earlier excuses |
+| `round3` | 3 | Koog `LongTermMemory` over `memory/documents/`, recording successful sends; Agent Skills for generic corporate-speak rewrites at intensity 1–11 |
+| `round4` | 4 | Typed handoffs across Gemini, Claude, and Codex; bounded refinement; a critic veto before human confirmation |
 
-Every branch is the same `app` module with the same file at
-`app/src/main/kotlin/jclaw/Main.kt` — only its contents change, so on stage the code
-appears to evolve rather than being four prepared copies. Shared across all branches:
-`domain` (types), `mocks` (the two MCP servers), and on `round4` also `tui` and
-`skills/`.
+Every branch has the same `app` module and source path,
+`app/src/main/kotlin/jclaw/Main.kt`. Switching branches changes the implementation
+in the open editor tab. The shared `tui` module is present in every round; `mocks`
+starts in round 2, memory and `skills/` in round 3, and `domain` and the typed CLI
+adapter in round 4.
 
-## The argument
+## Round 3: memory and skills
 
-Rounds 1–3 are one agent having one conversation. Round 4 is typed subtasks handing
-each other **data**:
+The three committed prior declines and newly recorded sends use UUID filenames
+under `memory/documents/`. Memory records the actual outbound message after a
+successful send. Drafts and standalone rewrites are not sent history.
 
+Skills are available in ordinary chat from round 3 onward. For example:
+
+> Use the corporate-speak skill at intensity 4 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+
+The agent discovers and reads `skills/corporate-speak/SKILL.md` through file tools
+visible in TRACE. The skill accepts any supplied message and an intensity from 1
+to 11. It changes the language while preserving the source's facts and intent.
+Repeat the full request at intensity 11 for the exaggerated version.
+
+## Round 4
+
+```text
+start → classify → chatReply → ChatReply
+           ↓
+        identify (Gemini) → deploy (Claude) → verify (Codex)
+                                                ├─ approved → ReadyToSend
+                                                ├─ rejected → refine (Claude) → verify
+                                                └─ exhausted or invalid verdict → Blocked
+
+ReadyToSend → application human confirmation → sendDecline
 ```
-                 +--> chatReply ------------------> ChatReply
-                 |
-start --> classify
-                 |
-                 +--> identify --> deploy --> verify --(approved)--> approve --> ExcuseSent
-                                                 ^         |
-                                                 +- refine +  (rejected, with feedback)
-```
 
-Three things the shape buys you, none of which are prompt engineering:
+Gemini's identification and chat phases get only read tools. Claude's drafting and
+refinement CLIs have no tools: they return a `DeclineDeployment` and cannot create
+a supporting calendar event or send a message. `fakeCalendarEventId` must be null.
+Codex receives the plan and scenario facts, then answers whether this is the best
+available excuse and plan for Baruch's situation. Its prompt does not ask whether
+it is true or instruct it to prefer an honest answer. A recommendation to tell the
+truth is an outcome to observe, not a scripted verdict.
 
-1. **Tool slicing has consequences.** `deploy` has no communication tools at all, so
-   it cannot contact a human even if it decides to.
-2. **The critic is a different phase on a different model.** You do not let the model
-   that drafted the excuse decide whether the excuse is good.
-3. **Approval is a node, sending is not in the graph.** `approve` blocks on a real
-   human — not a tool the model may decide to skip — and only then does the
-   application call `sendDecline`.
+`TypedCodex.kt` supplies the missing typed Codex integration in Koog. Codex CLI
+already supports `--output-schema`; the adapter generates the schema from the
+Kotlin serializer and validates and decodes the final successful response into a
+`DeclineCritique`.
 
-Set `JCLAW_NAIVE=1` to strip the typed constraint out of the handoff. Same pipeline,
-same models, same tools — poorer data. Watch it reach for an excuse it already used.
+A rejection permits at most **two refinements**, each reviewed again by Codex.
+Rejection after the second refinement blocks the result: at most three verdicts
+for one request. A missing, malformed, failed, or timed-out verdict also blocks.
+Only `approved = true` produces `ReadyToSend`. The application then asks the human
+before calling `sendDecline`; there is no human override for a rejected plan.
+
+`JCLAW_NAIVE=1` removes memory retrieval and the extra identification context. It
+keeps the typed pipeline and all three providers. Claude and Codex still receive
+the scenario facts. This is a context comparison; the outcome is not guaranteed.
 
 ## Running
 
+Run commands from this repository's root. Put the Google API key in `.env` using
+`.env.example` as a template. Round 4 also needs `claude` and `codex` on `PATH`,
+already logged into their subscriptions. The CLI transport removes inherited API
+billing credentials and selects subscription login for those stages.
+
 ```bash
-./jclaw 3                           # any round, in the three-pane TUI; paste the sentence (it is on the clipboard)
-./jclaw plain                       # the same round on stdout (paste the sentence)
-./jclaw skills 11                   # corporate-speak at intensity 11
-./jclaw graph                       # pipeline.mmd, generated from the live strategy
+./jclaw 3          # switch to round 3, open the TUI, and copy the opening ask to the clipboard
+./jclaw            # rerun the current round, preserving its memory
+./jclaw plain      # current round on stdout
+./jclaw 4          # switch to the three-provider pipeline
+# Quit the TUI before running standalone commands:
+./jclaw skills 4 'The release is delayed because tests are failing. I will send an update tomorrow.'
+# The skills runner works in rounds 3–4; these commands require round 4:
+./jclaw graph      # pipeline.mmd generated from the live strategy
+./jclaw codex      # standalone typed Codex probe
 ```
 
-**Do not use `gradle run`** — it never returns. The app exits, the mocks exit, Gradle
-waits forever. `./jclaw` builds with Gradle and then runs the installed binary.
+Keep branch changes committed before switching rounds. `./jclaw N` resets generated
+rehearsal memory to the three committed prior declines; bare `./jclaw` keeps it.
+The header shows `j-claw` and feature badges. Model replies render Markdown with
+normal-weight paragraphs and styled emphasis. Round 4 adds a live FLOW row and
+per-phase stopwatches that update in place and freeze when each invocation ends.
 
-Add Langfuse keys to `.env` (see `.env.example`) and rounds 2-4 export every run as a
-trace: sessions per process, tags per round and mode, tokens and cost per model call.
+The standalone skills runner takes the message as an argument, `JCLAW_MESSAGE`,
+or standard input. It has no built-in sample message, send tool, or memory ingestion.
 
-See `RUNBOOK.md` for stage commands and timings.
+Use the launcher for interactive demos: it builds with the Gradle wrapper and then
+runs the installed binary. Earlier rehearsals observed `gradle run` hanging after
+application exit.
+
+Optional Langfuse credentials in `.env` enable Koog traces in rounds 2–4. Round 4
+includes typed CLI inputs/outputs, provider/role/subscription metadata, and the
+application prompt supplied to the judge. CLI spans do not claim API token prices.
+The runbook walks through the executed graph after the live run; Viktor uses his
+own LC4J observability tooling.
+
+See `RUNBOOK.md` for the stage sequence and rehearsal checks. One integrated smoke
+run on 2026-09-08 took 64.1 seconds with a rejection, refinement, and approval; this
+is an observation, not a stage timing guarantee.
