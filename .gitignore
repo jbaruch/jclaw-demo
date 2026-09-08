@@ -38,10 +38,6 @@ logs/
 # Tessl tile cache
 .tessl/tiles/
 
-# SQLite WAL/SHM (the seeded memory.sqlite is committed; transient files aren't)
-mocks/memory.sqlite-wal
-mocks/memory.sqlite-shm
-
 # Compiled output that isn't committed
 **/target/
 # === Tessl-generated artifacts (managed by jbaruch/coding-policy) ===
