@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Stage launcher.
 #
-#   ./jclaw 1        round 1 - switches branch silently, opens the three-pane TUI with
-#                    the round's opening sentence already asked (round 1 follow-ups,
-#                    typed into the PROMPT pane: "ok, not bad! Let's tweak it a bit."
-#                    then "what excuse did you suggest? quote it exactly.")
+#   ./jclaw 1        round 1 - switches branch silently, copies the round's opening
+#                    sentence to the clipboard, opens the three-pane TUI. Paste it into
+#                    PROMPT. (Round 1 follow-ups, typed: "ok, not bad! Let's tweak it a
+#                    bit." then "what excuse did you suggest? quote it exactly.")
 #   ./jclaw 2|3|4    same for the other rounds
 #   ./jclaw          re-run whatever round is checked out, in the TUI
-#   ./jclaw plain    the same round on stdout, no TUI - paste the sentence (it is on
-#                    the clipboard). The fallback if the TUI misbehaves.
+#   ./jclaw plain    the same round on stdout, no TUI - paste the sentence there too.
+#                    The fallback if the TUI misbehaves.
 #   ./jclaw tui      round 4 in the three-pane UI          (round4 only)
 #   ./jclaw skills N corporate-speak at intensity N        (round4 only)
 #   ./jclaw graph    emit pipeline.mmd from the strategy   (round4 only)
@@ -62,5 +62,5 @@ case "${1:-run}" in
   graph)  exec app/build/install/app/bin/app-graph ;;
   codex)  exec app/build/install/app/bin/app-codex ;;
   plain)  exec app/build/install/app/bin/app ;;
-  run|*)  exec app/build/install/app/bin/app-tui "$ASK" ;;
+  run|*)  exec app/build/install/app/bin/app-tui ;;
 esac
