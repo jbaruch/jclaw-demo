@@ -62,7 +62,6 @@ same models, same tools — poorer data. Watch it reach for an excuse it already
 ```
 
 **Do not use `gradle run`** — it never returns. The app exits, the mocks exit, Gradle
-waits forever. `./jclaw` builds with Gradle and then runs the installed binary, which
-is what the JNation build did for the same reason.
+waits forever. `./jclaw` builds with Gradle and then runs the installed binary.
 
 See `RUNBOOK.md` for stage commands and timings.

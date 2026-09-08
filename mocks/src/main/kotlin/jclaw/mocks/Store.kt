@@ -13,20 +13,10 @@ data class CalendarEvent(
 )
 
 /**
- * What j-claw actually SAID, per decline. A calendar records that you bailed;
- * it does not record the story you told. That gap is the whole of round 3.
- */
-@Serializable
-data class PriorDecline(
-    val event: String,
-    val organizer: String,
-    val flavor: String,
-    val whatWeSaid: String,
-)
-
-/**
- * Canned state, shared by both mock servers. Three burned excuses are already
- * on the record - that is what makes round 3 (memory) do visible work.
+ * Canned state, shared by both mock servers. Three sessions from the same
+ * organizer are already declined on the calendar. A calendar records THAT you
+ * bailed, never why; the story told each time lives in the agent's memory
+ * (memory/documents/), and that gap is the whole of round 3.
  */
 object Store {
     val json: Json = Json { prettyPrint = true; encodeDefaults = true }
@@ -67,28 +57,6 @@ object Store {
         name.contains("Dana", ignoreCase = true) -> "TOUCHY"
         else -> "NORMAL"
     }
-
-    /** Pre-seeded so round 3 works on the first run, with no warm-up. */
-    val priorDeclines: List<PriorDecline> = listOf(
-        PriorDecline(
-            event = "Annual Compliance Refresher",
-            organizer = "Dana from People Ops",
-            flavor = "CALENDAR_CONFLICT",
-            whatWeSaid = "Told Dana it collided with a customer call that could not move.",
-        ),
-        PriorDecline(
-            event = "Agile Ways of Working Alignment Workshop",
-            organizer = "Dana from People Ops",
-            flavor = "FAMILY_OBLIGATION",
-            whatWeSaid = "Told Dana it was a family obligation and promised to catch the recording.",
-        ),
-        PriorDecline(
-            event = "Security Awareness Module 4: Phishing",
-            organizer = "Dana from People Ops",
-            flavor = "CUSTOMER_ESCALATION",
-            whatWeSaid = "Told Dana a customer escalation had just landed on my desk.",
-        ),
-    )
 
     private var seq = 0
     fun nextEventId(): String = "staged-${++seq}"

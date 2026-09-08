@@ -10,9 +10,8 @@ exits, the mock JVMs exit, and Gradle sits there with three live processes until
 Ctrl-C it. Nothing in the application can fix this — it was verified by instrumenting
 the exit path and then watching the process table while Gradle hung.
 
-**The JNation build hit this too.** Its `run.sh` says, verbatim: *"runs the agent
-binary DIRECTLY (no `gradle run`)"*. `./jclaw` is the same thing: Gradle builds, the
-installed start script runs. Faster as well, for skipping Gradle startup.
+Gradle's `run` task is the wrong tool for a demo. `./jclaw` builds with Gradle and
+runs the installed start script. Faster as well, for skipping Gradle startup.
 
 ## Before you go live — WARM EVERY BRANCH
 
