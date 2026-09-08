@@ -3,10 +3,14 @@ package com.jbaruch.jclaw.tui
 import dev.tamboui.layout.Constraint
 import dev.tamboui.style.Color
 import dev.tamboui.style.Style
+import dev.tamboui.text.Line
+import dev.tamboui.text.Span
+import dev.tamboui.text.Text
 import dev.tamboui.toolkit.Toolkit.column
 import dev.tamboui.toolkit.Toolkit.list
 import dev.tamboui.toolkit.Toolkit.panel
 import dev.tamboui.toolkit.Toolkit.row
+import dev.tamboui.toolkit.Toolkit.richText
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
 import dev.tamboui.toolkit.app.ToolkitApp
@@ -40,11 +44,10 @@ enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
  * Mutations from background threads marshal via runner().runOnRenderThread per the
  * `jbaruch/tamboui` tile's render-thread-discipline rule.
  *
- * Wrapping: chat/trace inputs are pre-wrapped into multiple rows of <= JCLAW_WRAP
- * characters (default 88) BEFORE being added to the list. TamboUI's auto-wrap
- * primitives don't reflow inside a column reliably, and they fall back to ellipsis
- * truncation when they can't size a row. Pre-wrapping sidesteps the whole problem
- * — each chat/trace row is a plain text() element of safe width.
+ * Wrapping: model replies are parsed as whole Markdown messages and rendered into
+ * styled rows of JCLAW_WRAP columns (default 88). Other chat and trace lines are
+ * pre-wrapped. Keeping one row per list item preserves line-by-line scrolling;
+ * TamboUI 0.4.0's list does not offset the content of a partly scrolled tall item.
  */
 class JclawTui(
     private val onSubmit: (String) -> Unit,
@@ -64,7 +67,7 @@ class JclawTui(
     /** Every prompt is a fresh run through the pipeline. */
     fun resetFlow() = onRenderThread { stageStates.clear() }
 
-    private val chatLines: MutableList<Pair<String, ChatKind>> = mutableListOf()
+    private val chatLines: MutableList<Line> = mutableListOf()
     private val traceLines: MutableList<Pair<String, TraceKind>> = mutableListOf()
     private val promptInput = TextInputState()
 
@@ -106,7 +109,7 @@ class JclawTui(
     }
 
     fun chat(line: String, kind: ChatKind = ChatKind.JCLAW) {
-        val rows = wrap(line).map { it to kind }
+        val rows = chatRows(line, kind)
         onRenderThread { chatLines.addAll(rows) }
     }
 
@@ -131,16 +134,16 @@ class JclawTui(
         }
     }
 
-    private fun chatText(line: String, kind: ChatKind): StyledElement<*> = when (kind) {
-        // CHAT panel — three roles, three colors:
-        //   j-claw external (greeting + free-form replies)  → blue bold      (JCLAW, OK)
-        //   j-claw internal thinking (tool-result echoes)   → yellow         (TOOL_RESULT)
-        //   you                                             → green bold     (YOU)
-        ChatKind.JCLAW       -> text(line).fg(Color.BLUE).bold()
-        ChatKind.OK          -> text(line).fg(Color.BLUE).bold()
-        ChatKind.YOU         -> text(line).fg(Color.GREEN).bold()
-        ChatKind.TOOL_RESULT -> text(line).fg(Color.YELLOW)
-        ChatKind.ERR         -> text(line).fg(Color.RED).bold()
+    private fun chatRows(line: String, kind: ChatKind): List<Line> {
+        if (kind == ChatKind.JCLAW) return markdownLines(line, WRAP)
+        val style = when (kind) {
+            ChatKind.JCLAW       -> Style.EMPTY.fg(Color.BLUE)
+            ChatKind.OK          -> Style.EMPTY.fg(Color.BLUE).bold()
+            ChatKind.YOU         -> Style.EMPTY.fg(Color.GREEN).bold()
+            ChatKind.TOOL_RESULT -> Style.EMPTY.fg(Color.YELLOW)
+            ChatKind.ERR         -> Style.EMPTY.fg(Color.RED).bold()
+        }
+        return wrap(line).map { Line.from(Span.styled(it, style)) }
     }
 
     private fun traceText(line: String, kind: TraceKind): StyledElement<*> = when (kind) {
@@ -193,7 +196,7 @@ class JclawTui(
         // Update the persistent lists' items each frame WITHOUT rebuilding the
         // list elements themselves — that keeps the user's scroll position alive.
         val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
-            .map { (txt, kind) -> chatText(txt, kind) }.toTypedArray()
+            .map { richText(Text.from(it)) }.toTypedArray()
         val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
             .map { (txt, kind) -> traceText(txt, kind) }.toTypedArray()
         chatListElement.elements(*chatItems)
@@ -221,7 +224,7 @@ class JclawTui(
                     .onSubmit(Runnable {
                         val line = promptInput.text()
                         if (line.isNotBlank()) {
-                            chatLines.addAll(wrap("you: $line").map { it to ChatKind.YOU })
+                            chatLines.addAll(chatRows("you: $line", ChatKind.YOU))
                             onSubmit(line)
                             promptInput.clear()
                         }

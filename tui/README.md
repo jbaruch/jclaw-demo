@@ -1,8 +1,8 @@
 # tui/
 
-Shared **TamboUI** three-pane shell, used by every round (`./jclaw N`). One module, one
-file: `JclawTui.kt`. Both sides of the talk can embed it, so the on-stage interface is
-the same.
+Shared **TamboUI** three-pane shell, used by every round (`./jclaw N`). `JclawTui.kt`
+owns the shell; `ChatMarkdown.kt` renders model replies through native Markdown.
+Both sides of the talk can embed the module, so the on-stage interface is the same.
 
 ## Layout
 
@@ -32,6 +32,12 @@ the same.
 ## Render-thread discipline
 
 All UI mutation happens on the render thread via `runOnRenderThread`; the public
-methods above marshal for you. Chat and trace text is pre-wrapped to `JCLAW_WRAP`
-columns (default 88), because TamboUI's auto-wrap clips with an ellipsis inside a
-column.
+methods above marshal for you. Model replies use TamboUI 0.4.0's native CommonMark
+and GFM renderer: paragraphs are normal weight, with Markdown headings, emphasis,
+lists, links, and code rendered as terminal styles. The chat roles keep their colors.
+
+Whole model replies are parsed before wrapping to `JCLAW_WRAP` columns (default 88),
+then converted into styled single-row list items. This preserves formatting across
+wrap boundaries and keeps scrolling through long replies correct. Other chat and
+trace text remains pre-wrapped plain text. The persistent chat and trace lists keep
+their focus, scroll position, and sticky-scroll behavior across redraws.
