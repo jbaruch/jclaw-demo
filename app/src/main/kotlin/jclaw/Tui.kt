@@ -21,8 +21,9 @@ import kotlin.system.exitProcess
  * ROUND 1 in the three-pane TUI. The agent is the same one factory call as in
  * Main.kt; the TUI owns the main thread and the agent runs on its own scope.
  *
- * The opening sentence arrives as a program argument (./jclaw passes it), so the
- * round starts the moment the screen is up. Follow-ups are typed into PROMPT.
+ * The opening sentence is on the clipboard (./jclaw puts it there): paste it into
+ * PROMPT. A program argument, if one is given, is asked on startup instead - that is
+ * how the smoke tests drive it.
  *
  * TRACE shows the only thing there is to show: one model call per turn, with
  * zero tools. That emptiness is the point of round 1.

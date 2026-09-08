@@ -117,7 +117,8 @@ audience-participation beat that works without a room.
 ## The TUI — all four rounds, as at JNation
 
 `./jclaw N` opens every round in the TamboUI three-pane UI (chat, trace, prompt, busy
-spinner) with the round's opening sentence already asked. Tool calls, the mock servers'
+spinner) and puts the round's opening sentence on the clipboard: paste it into PROMPT.
+Tool calls, the mock servers'
 own log lines, and memory reads and writes land in TRACE. Follow-ups are typed into
 PROMPT. Round 4's send gate is the word `send` typed into PROMPT rather than `y`;
 `JCLAW_NAIVE` and `JCLAW_CRITIC` work as usual.
