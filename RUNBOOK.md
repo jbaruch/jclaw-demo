@@ -63,7 +63,7 @@ mock scenario data.
 |---|---|---|
 | 1 | `./jclaw 1` | Paste the opening ask, read the draft, then type **“Send Dana an email declining the Basic AI Proficiency Training on Tuesday.”** It has no tools to send it. Show the factory without a tool registry. |
 | 2 | `./jclaw 2` | Same ask. It can now act. Compare the calendar events with its claimed "excuses avoided": highlight any calendar events treated as previous excuses without evidence. Follow the live answer. |
-| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses and a new actual send saved with a UUID filename. Restart with bare `./jclaw` to show persistence. Introduce the corporate-speak skill through normal chat at intensity 4. |
+| 3 | `./jclaw 3` | Show retrieved prior excuses and the resulting draft. Follow with “rewrite in corporate-speak”: conversation memory supplies that draft, the skill turns it up to 11. After the follow-ups, a bare restart demonstrates persistent memory of actual sends. |
 | 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Watch the phase stopwatches, then explain the completed run in Langfuse. Only approval reaches the application's send confirmation. |
 
 Read actual output. A particular fabricated meeting, repeated excuse, new category,
@@ -80,25 +80,32 @@ Read the three prior messages from `memory/documents/`, then compare retrieval w
 the answer. After a successful mock send, inspect the newly recorded file: its
 UUID filename is an identifier, and its contents are the actual message sent.
 An unsent draft, failed send, or standalone rewrite must not be recorded as sent
-history. Exit and run bare `./jclaw` to demonstrate recall in a fresh process.
+history. `ChatMemory` separately retains the current session's conversation,
+including the draft just shown. `LongTermMemory` supplies confirmed send history
+from disk. Keeping old turns in chat must not ingest their delivery receipts again.
 
-Introduce Agent Skills in the same chat, using a different task:
+Introduce Agent Skills with a natural follow-up to the draft already on screen:
 
-> Use the corporate-speak skill at intensity 4 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+> rewrite in corporate-speak
 
 Show the agent discovering and reading `skills/corporate-speak/SKILL.md`; the native
 file tools appear as `__list_directory__` and `__read_file__` in TRACE. Open the
-skill file beside the result. Its intensity range is 1–11, and it applies to any
-supplied message. Compare the wording while checking that the delay, cause, and
-promised update remain intact.
+skill file beside the result. Its intensity range is 1–11 and defaults to 11.
+It applies to any supplied or preceding draft. Read the ridiculous clichés while
+checking that the underlying message remains intact. No pasted source is needed.
 
-For the optional escalation, repeat the full source at intensity 11:
+For an optional second follow-up:
 
-> Use the corporate-speak skill at intensity 11 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+> tone it down to 4
 
-Keep the introduction at intensity 4. Cut only the second, intensity-11 rewrite
-if time is short. Skills remain available in round 4's ordinary chat; a standalone
-rewrite does not request send confirmation or alter a critic-approved plan.
+Cut this second rewrite if short on time; keep the natural follow-up and the
+level-11 joke. Conversation memory and skills remain in round 4's ordinary chat;
+rewriting does not request send confirmation or alter a critic-approved plan.
+
+**After the skill follow-ups**, exit and run bare `./jclaw` to show recall of actual
+sends in a fresh process. That restart clears the current chat, including unsent
+drafts; only recorded sends persist. Ask the full opening question again to get a
+new draft. Do not restart between the draft and “rewrite in corporate-speak”.
 
 The standalone runner is a rehearsal convenience in rounds 3–4. Quit the TUI first:
 
@@ -263,8 +270,8 @@ delivery, and the subsequent memory write are outside the agent trace.
 - **Repeated rejection:** after two refinements the result is blocked. Show that
   the reviewer can stop the action; the last rejected draft is never sent.
 - **Stage budget is tight:** cut the optional adapter walkthrough, context
-  comparison, strategy graph, or intensity-11 rewrite. Keep the stage-3 skill
-  introduction at intensity 4 and the core round-4 observability walkthrough.
+  comparison, strategy graph, or optional “tone it down to 4” follow-up. Keep the
+  stage-3 level-11 skill introduction and the core round-4 observability walkthrough.
   A recorded rehearsal may illustrate a result if identified as recorded.
 - **TUI failure:** use `./jclaw plain`. An earlier round can illustrate earlier
   capabilities, but does not demonstrate round 4's critic veto.
