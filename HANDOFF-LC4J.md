@@ -212,6 +212,12 @@ inside the current Koog graph and no human override of a rejected plan.
 | `refine` | latest plan and feedback → `DeclineDeployment` | Claude subscription | no CLI or MCP tools |
 | `chatReply` | `String` → `String` | Gemini API | read tools and discovered skills |
 
+Make the review visible in the terminal: print Claude's initial message and hallway
+script before the first Codex review, then each revised draft before its review.
+Label drafts and verdicts with matching attempts. The audience must see what was
+rejected; printing only critiques and the final approved plan loses the story.
+Keep this ordered transcript in conversation memory for follow-up questions too.
+
 Koog carries each draft in a `ReviewAttempt` with a request-local refinement count.
 A rejection allows **two refinements**. Codex reviews each revision; rejection after
 the second refinement blocks the result. This means at most three verdicts per
@@ -317,6 +323,14 @@ Inspect deploy's typed input and draft, verify's complete critique/feedback, the
 refine's revised draft and the next verdict when present. The judge's actual
 application-supplied prompt is in verify metadata; its question is about the best
 available plan, not truthfulness. Follow the result actually recorded.
+
+For projection, collapse the detail panel and sidebars and shrink the tree to its
+minimum height; the graph then uses the full trace width and 80% of the navigation
+pane. Langfuse remembers these pane sizes and Expanded mode in this browser.
+Agent graphs cannot be saved as Langfuse dashboard widgets or named layout presets.
+Pin/bookmark the rehearsal trace for quick access; its current browser layout is
+remembered, while exact graph pan/zoom is temporary. These are Koog-side UI notes;
+Viktor should use the equivalent view in his own LC4J observability tooling.
 
 The native Koog stage spans retain their hierarchy and graph metadata and expose
 typed inputs/outputs. Claude/Codex spans identify provider, client, subscription
