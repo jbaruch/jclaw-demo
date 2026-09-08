@@ -21,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 fun jclawStrategy(
     mcp: Mcp,
     naive: Boolean,
+    skills: AgentSkills = AgentSkills.EMPTY,
     onStage: (String, String, PipelineStageState) -> Unit = { _, _, _ -> },
     onVerdict: (String) -> Unit = {},
 ): AIAgentGraphStrategy<String, JclawResult> {
@@ -31,7 +32,7 @@ fun jclawStrategy(
     val judge = CliCritic.codex()
     // CLI stages do not share Gemini's chat history. Keep the last reviewed plan
     // explicit so a follow-up can discuss it without inventing what was decided.
-    var lastDecision = "No plan has been reviewed in this session."
+    var lastDecision: String? = null
 
     suspend fun <T> cliStage(stage: String, provider: String, call: suspend () -> T): T {
         onStage(stage, provider, PipelineStageState.STARTED)
@@ -49,14 +50,16 @@ fun jclawStrategy(
         val classify by subgraphWithTask<String, ClassifiedInput>(
             tools = emptyList(), llmModel = Models.flash,
         ) { input ->
-            "Decide whether Baruch wants out of an obligation (EXCUSE_REQUEST) or is " +
-                "just talking (CHAT). Echo his message verbatim into userMessage.\n$input"
+            classifyTask(input)
         }
         val chatReply by subgraphWithTask<String, String>(
-            tools = slices.read, llmModel = Models.flash,
+            tools = slices.read + skills.registry.tools, llmModel = Models.flash,
         ) { input ->
-            "Reply to Baruch, briefly and in character.\nLast pipeline decision: $lastDecision\n" +
-                "This record contains no delivery receipt; do not infer that anything was sent.\n$input"
+            "Reply to the user's current request. Apply a matching runtime skill when useful.\n" +
+                (lastDecision?.let {
+                    "Only for a question about the previous plan: $it\n" +
+                        "This record contains no delivery receipt.\n"
+                } ?: "") + input
         }
         val identify by subgraphWithTask<String, DeclineRequest>(
             tools = slices.read, llmModel = Models.flash,
@@ -117,3 +120,16 @@ private fun CliAgentStructuredResponse<DeclineDeployment>.requirePlan(): Decline
         check(it.fakeCalendarEventId == null) { "Draft claimed a calendar event that this stage never created" }
     }
 }
+
+/** Editing supplied text is ordinary chat, even when that text mentions an obligation. */
+internal fun classifyTask(input: String): String = """
+    Route the user's current request by what they want you to do.
+    EXCUSE_REQUEST: they ask you to develop a plan to get them out of an obligation.
+    CHAT: writing, rewriting, editing, translating, using a skill, answering questions,
+    ordinary conversation, or discussing a previous plan. A quoted message about an
+    obligation is source text to edit, not a request to launch the decline workflow.
+    Requests to change style or intensity are CHAT. When uncertain, choose CHAT and
+    clarify what the user needs. Echo the user's message verbatim into userMessage.
+    User message:
+    $input
+""".trimIndent()

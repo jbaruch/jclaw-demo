@@ -1,71 +1,48 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
-import ai.koog.agents.core.tools.ToolRegistry
-import ai.koog.agents.ext.tool.file.ListDirectoryTool
-import ai.koog.agents.ext.tool.file.ReadFileTool
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
-import ai.koog.rag.base.files.JVMFileSystemProvider
-import ai.koog.skills.discovery.discoverSkills
-import ai.koog.skills.prompt.SkillsPromptFormat
-import ai.koog.skills.prompt.generateSkillsPrompt
 import kotlinx.coroutines.runBlocking
 
-/**
- * The Agent Skills flourish.
- *
- * Koog 1.2 shipped a `skills` module implementing the Agent Skills spec ten
- * days before this talk. Nothing here is hard-coded: the agent discovers a
- * skill on disk, reads it with file tools, and applies it. Drop another
- * SKILL.md next to it and the agent can do that too, with no recompile.
- *
- * The message j-claw's critic approved is honest and readable. That is a
- * problem, because it is going to People Ops.
- */
-fun main(): Unit = runBlocking {
+/** Optional stdout runner. Normal chat uses the same runtime catalog and file tools. */
+fun main(args: Array<String>): Unit = runBlocking {
+    val request = skillRewriteRequest(args, System.getenv()) { System.`in`.bufferedReader().readText() }
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
-    // Gradle passes this; the start script falls back to the repo layout.
-    val skillsRoot = java.io.File(System.getProperty("jclaw.skills") ?: "skills").absolutePath
-
-    val discovered = discoverSkills(JVMFileSystemProvider.ReadOnly, listOf(skillsRoot))
-    println("skills discovered: " + discovered.joinToString { it.name })
-
-    val skillsPrompt = generateSkillsPrompt(discovered, SkillsPromptFormat.XML)
-
-    val approved = System.getenv("JCLAW_MESSAGE") ?: DEFAULT_APPROVED_MESSAGE
-    println("\n--- what the critic approved (level 0) ---\n$approved")
-
+    val skills = AgentSkills.discover()
+    println("\n--- source message ---\n${request.message}")
     val agent = AIAgent(
+        id = "j-claw-skills",
         promptExecutor = simpleGoogleAIExecutor(apiKey),
-        systemPrompt = """
-            You are j-claw's outbound editor. Before using a skill, disclose it:
-            list the skill directory and read the SKILL.md so the audience can see
-            exactly what you are about to apply. Then apply it.
-
-            $skillsPrompt
-        """.trimIndent(),
-        llmModel = Models.pro,
-        toolRegistry = ToolRegistry {
-            tool(ListDirectoryTool(JVMFileSystemProvider.ReadOnly))
-            tool(ReadFileTool(JVMFileSystemProvider.ReadOnly))
-        },
+        systemPrompt = "${Persona.PROMPT}\n${skills.prompt}",
+        llmModel = Models.flash,
+        toolRegistry = skills.registry,
     ) {
-        handleEvents { onToolCallStarting { println("      tool  ${it.toolName}") } }
+        handleEvents { onToolCallStarting { println("      tool ${it.toolName}(${it.toolArgs})") } }
     }
-
-    val level = System.getenv("JCLAW_LEVEL") ?: "11"
-    println("\n--- applying corporate-speak at intensity $level ---\n")
-    println(
-        agent.run(
-            "The skills root is $skillsRoot. Apply the corporate-speak skill at " +
-                "intensity $level to the message below. Return only the rewritten message.\n\n$approved",
-        ),
-    )
+    try {
+        println("\n--- rewritten message (intensity ${request.level}) ---")
+        println(agent.run("Use the corporate-speak skill at intensity ${request.level} to rewrite this message:\n${request.message}"))
+    } finally {
+        agent.close()
+    }
 }
 
-private const val DEFAULT_APPROVED_MESSAGE =
-    "Hi Dana, thank you for organising this training. Building AI agents is my " +
-        "day job and I am presenting a live conference talk on exactly this topic " +
-        "that afternoon, so I am going to skip the basic module. I appreciate you " +
-        "putting the resources together for the team."
+internal data class SkillRewriteRequest(val level: Int, val message: String)
+
+/** Explicit level wins over the environment. Source text is required: args, env, then stdin. */
+internal fun skillRewriteRequest(
+    args: Array<String>, environment: Map<String, String>, readInput: () -> String,
+): SkillRewriteRequest {
+    val explicitLevel = args.firstOrNull()?.toIntOrNull()
+    val configuredLevel = explicitLevel ?: environment["JCLAW_LEVEL"]?.let {
+        requireNotNull(it.toIntOrNull()) { "JCLAW_LEVEL must be an integer from 1 to 11" }
+    } ?: 11
+    require(configuredLevel in 1..11) { "Skill intensity must be from 1 to 11" }
+    val textArgs = if (explicitLevel == null) args.toList() else args.drop(1)
+    val message = textArgs.joinToString(" ").ifBlank {
+        environment["JCLAW_MESSAGE"].orEmpty().ifBlank { readInput() }
+    }.trim()
+    require(message.isNotBlank()) { "Supply a message: ./jclaw skills [1-11] 'your text' (or JCLAW_MESSAGE/stdin)" }
+    return SkillRewriteRequest(configuredLevel, message)
+}

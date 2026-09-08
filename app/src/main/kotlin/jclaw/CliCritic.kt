@@ -30,7 +30,7 @@ object CliCritic {
             timeout = 3.minutes,
             permissionMode = ClaudePermissionMode.DontAsk,
             additionalFlags = claudeFlags,
-            systemPrompt = Scenario.SYSTEM_PROMPT,
+            systemPrompt = Persona.PROMPT,
             generateRequest = { request: DeclineRequest ->
                 """
                 Draft the best plan to get Baruch out of this obligation. Choose a flavor,
@@ -56,7 +56,7 @@ object CliCritic {
             timeout = 3.minutes,
             permissionMode = ClaudePermissionMode.DontAsk,
             additionalFlags = claudeFlags,
-            systemPrompt = Scenario.SYSTEM_PROMPT,
+            systemPrompt = Persona.PROMPT,
             generateRequest = { feedback: String ->
                 """
                 Revise the proposed plan using the judge's feedback. Return the complete

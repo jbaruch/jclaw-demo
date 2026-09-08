@@ -22,6 +22,7 @@ fun main(): Unit = runBlocking {
     val naive = System.getenv("JCLAW_NAIVE") == "1"
     val autoSend = System.getenv("JCLAW_AUTOSEND") == "1"
     Mcp.boot("calendar-mcp", "organizer-mcp").use { mcp ->
+        val skills = AgentSkills.discover()
         val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
         println("[mode] " + if (naive) "NAIVE - less context and no memory" else "DOMAIN-MODELLED")
         println("[models] ${Models.flash.id} identifies; Claude subscription drafts/refines; Codex subscription judges")
@@ -29,14 +30,14 @@ fun main(): Unit = runBlocking {
             id = "j-claw",
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
-                prompt = Scenario.SYSTEM_PROMPT, llm = Models.flash, maxAgentIterations = 200,
+                prompt = "${Persona.PROMPT}\n${skills.prompt}", llm = Models.flash, maxAgentIterations = 200,
             ),
             strategy = jclawStrategy(
-                mcp, naive,
+                mcp, naive, skills,
                 onStage = { stage, model, state -> println("[$stage] $model - $state") },
                 onVerdict = ::println,
             ),
-            toolRegistry = mcp.registry,
+            toolRegistry = mcp.registry + skills.registry,
         ) {
             if (Observability.enabled) install(OpenTelemetry) {
                 langfuse(
@@ -50,7 +51,7 @@ fun main(): Unit = runBlocking {
             handleEvents { onToolCallStarting { println("      tool ${it.toolName}") } }
         }
         try {
-            println("\nj-claw. Ask for a plan or a follow-up. Blank line or ctrl-D quits.\n")
+            println("\n${Persona.WELCOME} Blank line or ctrl-D quits.\n")
             while (true) {
                 print("you: ")
                 val line = readlnOrNull()?.trim()

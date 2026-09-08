@@ -48,7 +48,7 @@ fun main(args: Array<String>) {
     val submissions = Channel<String>(Channel.UNLIMITED)
     val tui = JclawTui(
         onSubmit = { submissions.trySend(it) },
-        features = listOf("MCP", "MEMORY", "WORKFLOW"),
+        features = listOf("MCP", "MEMORY", "SKILLS", "WORKFLOW"),
         flow = listOf("identify", "→", "deploy", "→", "verify", "⇄", "refine"),
     )
 
@@ -58,6 +58,7 @@ fun main(args: Array<String>) {
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
         val mcp = Mcp.boot("calendar-mcp", "organizer-mcp", onStderr = { tui.trace(it, TraceKind.TOOL_CALL) })
+        val skills = AgentSkills.discover(trace = { tui.trace(it, TraceKind.TOOL_CALL) })
         val memory = Memory.open(
             LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001),
             trace = { tui.trace(it.trim(), TraceKind.TOOL_CALL) },
@@ -70,11 +71,11 @@ fun main(args: Array<String>) {
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
-                prompt = Scenario.SYSTEM_PROMPT,
+                prompt = "${Persona.PROMPT}\n${skills.prompt}",
                 llm = Models.flash,
                 maxAgentIterations = 200,
             ),
-            strategy = jclawStrategy(mcp, naive,
+            strategy = jclawStrategy(mcp, naive, skills,
                 onStage = { stage, model, state ->
                     tui.traceStage(stage, model, when (state) {
                         PipelineStageState.STARTED -> TraceStageState.STARTED
@@ -90,7 +91,7 @@ fun main(args: Array<String>) {
                 },
                 onVerdict = { tui.chat(it, ChatKind.JCLAW) },
             ),
-            toolRegistry = mcp.registry,
+            toolRegistry = mcp.registry + skills.registry,
         ) {
 
             // Real traces, when there is somewhere to send them: see Observability.
@@ -133,8 +134,7 @@ fun main(args: Array<String>) {
         closeAgent = { agent.close(); Observability.flush(); mcp.close() }
 
         tui.chat(
-            "j-claw: At your service. There is a mandatory training on your calendar. " +
-                "Say the word and it will stop being your problem.",
+            Persona.WELCOME,
             ChatKind.OK,
         )
 

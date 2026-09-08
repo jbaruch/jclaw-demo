@@ -57,12 +57,11 @@ tasks.register<JavaExec>("graph") {
     systemProperty("jclaw.graph.out", rootProject.layout.projectDirectory.file("pipeline.mmd").asFile.absolutePath)
 }
 
-/** The Agent Skills flourish. */
+/** Optional standalone runner; normal chat also discovers and applies skills. */
 tasks.register<JavaExec>("runSkills") {
     group = "application"
     mainClass.set("jclaw.SkillsKt")
     classpath = sourceSets.main.get().runtimeClasspath
-    systemProperty("jclaw.skills", rootProject.layout.projectDirectory.dir("skills").asFile.absolutePath)
     standardInput = System.`in`
 }
 
@@ -92,3 +91,9 @@ listOf(
 }
 
 tasks.test { useJUnitPlatform() }
+
+// JavaExec starts in app/; all entry points need the same absolute runtime skill root.
+tasks.withType<JavaExec>().configureEach {
+    systemProperty("jclaw.skills", providers.environmentVariable("JCLAW_SKILLS_ROOT")
+        .orElse(rootProject.layout.projectDirectory.dir("skills").asFile.absolutePath).get())
+}

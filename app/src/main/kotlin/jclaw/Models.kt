@@ -1,7 +1,6 @@
 package jclaw
 
 import ai.koog.prompt.executor.clients.google.GoogleModels
-import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
 import ai.koog.prompt.llm.LLModel
 
@@ -37,7 +36,7 @@ object Models {
      * 3.7 by measurement, not by being newest. Same pipeline, same prompts,
      * three runs each: 3.5 = 60s, 3.6 = 37s, 3.7 = ~20s, 3.8 = ~30s. Newer is not
      * automatically faster - 3.8 is consistently slower than 3.7 here - and 3.7 was
-     * also the only one that picked ALREADY_PROFICIENT on every single run.
+     * useful for an interactive demo.
      */
     val flash: LLModel = when (System.getenv("JCLAW_FLASH")) {
         "3.5" -> GoogleModels.Gemini3_5Flash
@@ -46,6 +45,4 @@ object Models {
         else -> Gemini3_7Flash
     }
 
-    /** Used by the standalone corporate-speak skills flourish, not the Stage 4 judge. */
-    val pro: LLModel = GoogleModels.Gemini3_1Pro_Preview
 }

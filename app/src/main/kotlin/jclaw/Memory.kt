@@ -23,12 +23,17 @@ import kotlin.io.path.listDirectoryEntries
 import kotlin.io.path.name
 import kotlin.io.path.notExists
 import kotlin.io.path.readText
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * j-claw's memory is a directory.
  *
- *     memory/documents/<id>   one story per file: what j-claw told Dana, and when
+ *     memory/documents/<id>   one story per file: what j-claw told an organizer, and when
  *     memory/vectors/<id>     that file's embedding - a cache, rebuilt when missing
  *
  * Koog's file-backed vector store does the reading, writing and cosine search;
@@ -95,21 +100,47 @@ class Memory private constructor(
             "${LocalDate.now()}: Declined $event, run by $organizer. Excuse flavor used: $flavor. Told them: \"$message\"\n"
         )
 
-        /**
-         * What a run leaves behind: what j-claw actually told the organizer - the sendDecline
-         * calls it made. Not the ask, and not its own account of itself: a run that sends
-         * nothing remembers nothing. No flavor either - round 3 has no domain model to name one.
-         */
-        val whatJclawToldDana = DocumentExtractor { messages ->
-            messages.filterIsInstance<Message.Assistant>()
-                .flatMap { it.parts }
-                .filterIsInstance<MessagePart.Tool.Call>()
-                .filter { it.tool == "sendDecline" }
-                .map { call ->
-                    val eventId = call.argsJson.getValue("eventId").jsonPrimitive.content
-                    val message = call.argsJson.getValue("message").jsonPrimitive.content
-                    MemoryRecord("${LocalDate.now()}: Declined event $eventId. Told the organizer: \"$message\"\n")
+        /** Persist only a matched delivery receipt, never a proposed or failed send. */
+        val sentDeclines = DocumentExtractor(::confirmedDeclines)
+    }
+}
+
+internal fun confirmedDeclines(messages: List<Message>): List<MemoryRecord> {
+    val pending = mutableMapOf<String, MessagePart.Tool.Call>()
+    return buildList {
+        for (message in messages) when (message) {
+            is Message.Assistant -> message.parts.filterIsInstance<MessagePart.Tool.Call>().forEach { call ->
+                if (call.tool == "sendDecline") call.id?.let { pending[it] = call }
+            }
+            is Message.User -> message.parts.filterIsInstance<MessagePart.Tool.Result>().forEach { result ->
+                if (result.tool != "sendDecline") return@forEach
+                val call = pending.remove(result.id) ?: return@forEach
+                val args = runCatching { call.argsJson }.getOrNull() ?: return@forEach
+                val eventId = args["eventId"]?.jsonPrimitive?.content ?: return@forEach
+                val text = args["message"]?.jsonPrimitive?.content ?: return@forEach
+                if (result.confirmsDelivery(eventId)) {
+                    add(MemoryRecord("${LocalDate.now()}: Declined event $eventId. Told the organizer: \"$text\"\n"))
                 }
+            }
+            else -> Unit
         }
     }
+}
+
+/** MCP returns a JSON envelope whose text content contains the organizer's receipt. */
+private fun MessagePart.Tool.Result.confirmsDelivery(eventId: String): Boolean {
+    if (isError) return false
+    return runCatching {
+        val envelope = Json.parseToJsonElement(output).jsonObject
+        if (envelope["isError"]?.jsonPrimitive?.booleanOrNull == true) return false
+        val receipts = envelope["content"]?.jsonArray?.mapNotNull { content ->
+            content.jsonObject["text"]?.jsonPrimitive?.content?.let {
+                runCatching { Json.parseToJsonElement(it) as? JsonObject }.getOrNull()
+            }
+        } ?: listOf(envelope)
+        receipts.any {
+            it["delivered"]?.jsonPrimitive?.booleanOrNull == true &&
+                it["eventId"]?.jsonPrimitive?.content == eventId
+        }
+    }.getOrDefault(false)
 }
