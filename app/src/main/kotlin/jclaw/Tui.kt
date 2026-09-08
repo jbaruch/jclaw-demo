@@ -13,6 +13,7 @@ import ai.koog.prompt.executor.clients.google.GoogleModels
 import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
+import com.jbaruch.jclaw.tui.StageState
 import com.jbaruch.jclaw.tui.TraceKind
 import jclaw.domain.Scenario
 import kotlinx.coroutines.CancellationException
@@ -24,6 +25,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlin.io.path.Path
 import kotlin.system.exitProcess
 
 /**
@@ -38,12 +40,18 @@ import kotlin.system.exitProcess
  * the tamboui render-thread-discipline rule.
  */
 fun main(args: Array<String>) {
+    JclawTui.quietStdStreams(Path("jclaw-tui.log"))
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val naive = System.getenv("JCLAW_NAIVE") == "1"
     val cliCritic = System.getenv("JCLAW_CRITIC") == "cli"
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) })
+    val tui = JclawTui(
+        onSubmit = { submissions.trySend(it) },
+        title = "ROUND 4 · PIPELINE",
+        features = listOf("MCP", "MEMORY", "WORKFLOW"),
+        flow = listOf("identify", "→", "deploy", "→", "verify", "⇄", "refine"),
+    )
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
@@ -89,8 +97,14 @@ fun main(args: Array<String>) {
                 }
             }
             handleEvents {
-                onSubgraphExecutionStarting { tui.trace("┌─ ▶ ${it.subgraph.name}", TraceKind.SUBGRAPH_START) }
-                onSubgraphExecutionCompleted { tui.trace("└─ ✓ ${it.subgraph.name}", TraceKind.SUBGRAPH_END) }
+                onSubgraphExecutionStarting {
+                    tui.trace("┌─ ▶ ${it.subgraph.name}", TraceKind.SUBGRAPH_START)
+                    tui.stage(it.subgraph.name, StageState.ACTIVE)
+                }
+                onSubgraphExecutionCompleted {
+                    tui.trace("└─ ✓ ${it.subgraph.name}", TraceKind.SUBGRAPH_END)
+                    tui.stage(it.subgraph.name, StageState.DONE)
+                }
                 onToolCallStarting { tui.trace("   ↪ ${it.toolName}(${it.toolArgs})", TraceKind.TOOL_CALL) }
                 onLLMCallStarting { _ -> tui.startBusy() }
                 onLLMCallCompleted { _ -> tui.stopBusy() }
@@ -112,6 +126,7 @@ fun main(args: Array<String>) {
             val prompt = next ?: submissions.receive()
             next = null
             try {
+                tui.resetFlow()
                 val result = agent.run(prompt)
                 if (result is JclawResult.ChatReply) {
                     tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
@@ -151,6 +166,11 @@ fun main(args: Array<String>) {
 
     try {
         tui.run()
+    } catch (t: Throwable) {
+        JclawTui.restoreStdStreams()
+        println("j-claw TUI died: $t - details in jclaw-tui.log")
+        t.printStackTrace()
+        exitProcess(1)
     } finally {
         agentScope.cancel()
         // Same reason as the CLI front end: the MCP reader thread will not let the

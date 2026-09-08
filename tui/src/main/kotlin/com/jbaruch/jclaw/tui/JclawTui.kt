@@ -15,15 +15,23 @@ import dev.tamboui.toolkit.element.StyledElement
 import dev.tamboui.toolkit.elements.ListElement
 import dev.tamboui.tui.TuiConfig
 import dev.tamboui.widgets.input.TextInputState
+import java.io.FileOutputStream
+import java.io.PrintStream
+import java.nio.file.Path
+import java.util.concurrent.ConcurrentLinkedQueue
 
 /** What kind of CHAT line — drives the color. */
 enum class ChatKind { JCLAW, YOU, TOOL_RESULT, OK, ERR }
 
+/** A pipeline stage's state in the FLOW row. */
+enum class StageState { PENDING, ACTIVE, DONE, FAILED }
+
 /** What kind of TRACE line — drives the color. */
-enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL }
+enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
 
 /**
  * Three-pane TUI for the j-claw demo, plus a ridiculous status line.
+ *   HEADER — which round this is, and badges for the features it has (MCP, MEMORY, ...)
  *   CHAT   — the conversation between Baruch and j-claw
  *   TRACE  — the live agent trace (subgraph entries/exits, tool calls)
  *   STATUS — ridiculous "computing... combobulating..." while LLMs are in flight
@@ -40,7 +48,21 @@ enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL }
  */
 class JclawTui(
     private val onSubmit: (String) -> Unit,
+    /** Shown in the header, e.g. "ROUND 2 · TOOLS + MCP". */
+    private val title: String = "j-claw",
+    /** One badge per feature this round has, in order: the deck lights them up round by round. */
+    private val features: List<String> = emptyList(),
+    /** The pipeline as stage names and connector arrows, e.g. identify, →, deploy, →, verify, ⇄, refine. */
+    private val flow: List<String> = emptyList(),
 ) : ToolkitApp() {
+
+    private val stageStates = HashMap<String, StageState>()
+
+    /** Light a stage up in the FLOW row: call from the subgraph start/complete events. */
+    fun stage(name: String, state: StageState) = onRenderThread { stageStates[name] = state }
+
+    /** Every prompt is a fresh run through the pipeline. */
+    fun resetFlow() = onRenderThread { stageStates.clear() }
 
     private val chatLines: MutableList<Pair<String, ChatKind>> = mutableListOf()
     private val traceLines: MutableList<Pair<String, TraceKind>> = mutableListOf()
@@ -67,24 +89,35 @@ class JclawTui(
     /** Enable mouse capture so ListElement gets SCROLL_UP / SCROLL_DOWN wheel events. */
     override fun configure(): TuiConfig = TuiConfig.builder().mouseCapture(true).build()
 
-    /** Start with focus on the prompt input so keystrokes go there, not into a list. */
+    // The agent starts before run() has created the runner, and the first things it
+    // says (servers ready, tools discovered, memory loaded) used to be dropped on the
+    // floor by `runner()?.`. Queue them; onStart drains the queue on the render thread.
+    private val pending = ConcurrentLinkedQueue<Runnable>()
+
+    private fun onRenderThread(block: () -> Unit) {
+        val r = runner()
+        if (r == null) pending.add(Runnable(block)) else r.runOnRenderThread(block)
+    }
+
+    /** Focus the prompt so keystrokes go there, not into a list; replay anything said before we existed. */
     override fun onStart() {
         runner()?.focusManager()?.setFocus(PROMPT_ID)
+        while (true) (pending.poll() ?: break).run()
     }
 
     fun chat(line: String, kind: ChatKind = ChatKind.JCLAW) {
         val rows = wrap(line).map { it to kind }
-        runner()?.runOnRenderThread { chatLines.addAll(rows) }
+        onRenderThread { chatLines.addAll(rows) }
     }
 
     fun trace(line: String, kind: TraceKind = TraceKind.TOOL_CALL) {
         val rows = wrap(line).map { it to kind }
-        runner()?.runOnRenderThread { traceLines.addAll(rows) }
+        onRenderThread { traceLines.addAll(rows) }
     }
 
     /** Call when an LLM call starts. Rotates to a fresh ridiculous phrase. */
     fun startBusy() {
-        runner()?.runOnRenderThread {
+        onRenderThread {
             busyDepth++
             statusText = "⏳ ${PHRASES.random()}"
         }
@@ -92,7 +125,7 @@ class JclawTui(
 
     /** Call when an LLM call ends. Clears the status when no calls remain. */
     fun stopBusy() {
-        runner()?.runOnRenderThread {
+        onRenderThread {
             busyDepth = (busyDepth - 1).coerceAtLeast(0)
             if (busyDepth == 0) statusText = null
         }
@@ -114,6 +147,46 @@ class JclawTui(
         TraceKind.SUBGRAPH_START -> text(line).fg(Color.MAGENTA).bold()  // new phase opens
         TraceKind.SUBGRAPH_END   -> text(line).fg(Color.GREEN)            // phase result
         TraceKind.TOOL_CALL      -> text(line).fg(Color.CYAN)             // every tool invocation
+        TraceKind.LLM            -> text(line).fg(Color.GRAY)             // every model call
+    }
+
+    private fun badge(label: String, bg: Color): Element =
+        text(" $label ").fg(Color.BLACK).bg(bg).bold().constraint(Constraint.length(label.length + 2))
+
+    private fun gap(): Element = text(" ").constraint(Constraint.length(1))
+
+    /** The handoff, live: the active stage is yellow, finished ones green, the rest gray. */
+    private fun flowRow(): Element? {
+        if (flow.isEmpty()) return null
+        val cells = ArrayList<Element>()
+        cells += badge("FLOW", Color.GREEN)
+        for (item in flow) {
+            cells += gap()
+            cells += if (item in CONNECTORS) {
+                text(item).fg(Color.GRAY).constraint(Constraint.length(item.length))
+            } else {
+                val (mark, color) = when (stageStates[item]) {
+                    StageState.ACTIVE -> "●" to Color.YELLOW
+                    StageState.DONE -> "✓" to Color.GREEN
+                    StageState.FAILED -> "✘" to Color.RED
+                    StageState.PENDING, null -> "·" to Color.GRAY
+                }
+                val label = "$item $mark"
+                val cell = text(label).fg(color).constraint(Constraint.length(label.length))
+                if (stageStates[item] == StageState.ACTIVE) cell.bold() else cell
+            }
+        }
+        cells += text("").constraint(Constraint.fill())
+        return row(*cells.toTypedArray()).constraint(Constraint.length(1))
+    }
+
+    /** The round, then one lit badge per feature: MCP cyan, MEMORY magenta, WORKFLOW yellow. */
+    private fun header(): Element {
+        val cells = ArrayList<Element>()
+        cells += badge(title, Color.GREEN)
+        features.forEachIndexed { i, f -> cells += gap(); cells += badge(f, BADGE_COLORS[i % BADGE_COLORS.size]) }
+        cells += text("").constraint(Constraint.fill())
+        return row(*cells.toTypedArray()).constraint(Constraint.length(1))
     }
 
     override fun render(): Element {
@@ -135,6 +208,8 @@ class JclawTui(
             if (id == focusedId) Color.GREEN else Color.GRAY
 
         return column(
+            header(),
+            *listOfNotNull(flowRow()).toTypedArray(),
             panel("CHAT", chatListElement)
                 .rounded().borderColor(borderFor(CHAT_ID)).constraint(Constraint.fill()),
             panel("TRACE", traceListElement)
@@ -162,6 +237,30 @@ class JclawTui(
         private const val CHAT_ID = "chat-list"
         private const val TRACE_ID = "trace-list"
         private const val PROMPT_ID = "jclaw-prompt"
+        private val BADGE_COLORS = listOf(Color.CYAN, Color.MAGENTA, Color.YELLOW)
+        private val CONNECTORS = setOf("→", "⇄", "↺", "->", "<->")
+
+        private val originalOut: PrintStream = System.out
+        private val originalErr: PrintStream = System.err
+
+        /**
+         * Whatever a library prints to stdout or stderr while the TUI owns the terminal
+         * (kotlin-logging's init line on stdout, SLF4J's "no providers" notice on stderr,
+         * a stack trace) lands ON the screen and stays there, because the renderer only
+         * repaints cells it changed. Send both to a file instead - the TUI draws through
+         * JLine's own terminal stream, not System.out. Nothing is dropped: read the file.
+         */
+        fun quietStdStreams(path: Path) {
+            val log = PrintStream(FileOutputStream(path.toFile(), true), true, Charsets.UTF_8)
+            System.setOut(log)
+            System.setErr(log)
+        }
+
+        /** Undo [quietStdStreams], for the one message that must reach a human: the TUI died. */
+        fun restoreStdStreams() {
+            System.setOut(originalOut)
+            System.setErr(originalErr)
+        }
 
         /** Wrap width in columns. Override with JCLAW_WRAP env var (floor 20). */
         private val WRAP: Int = (System.getenv("JCLAW_WRAP")?.toIntOrNull() ?: 88).coerceAtLeast(20)
