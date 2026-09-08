@@ -172,10 +172,9 @@ fun main(args: Array<String>) {
                 tui.chat("j-claw: hallway script → ${plan.hallwayScript}", ChatKind.JCLAW)
                 val delivered = deliverApproved(ready,
                     confirm = {
-                        tui.chat("Send it? type 'send' to deliver, anything else to hold.", ChatKind.OK)
+                        tui.chat("Send it? type 'send' to deliver, 'hold' to stop, or tell me what to change.", ChatKind.OK)
                         val answer = submissions.receive().trim()
-                        conversation.user(answer)
-                        answer.equals("send", ignoreCase = true)
+                        conversation.confirmSend(answer) { next = it }
                     },
                     send = {
                         deliveryAttempted = true

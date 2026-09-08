@@ -31,20 +31,23 @@ object CliCritic {
             permissionMode = ClaudePermissionMode.DontAsk,
             additionalFlags = claudeFlags,
             systemPrompt = Persona.PROMPT,
-            generateRequest = { request: DeclineRequest ->
-                """
-                Draft the best plan to get Baruch out of this obligation. Choose a flavor,
-                write the message to the organizer, and write a brief hallway script.
-                Account for the request's recently used flavors and known attendees.
-                You are drafting only: no calendar event has been created, so set
-                fakeCalendarEventId to null. Do not claim you took any external action.
-
-                CONTEXT: ${Scenario.USER_CONTEXT}
-                OBLIGATION: ${Scenario.EVENT_TITLE}
-                REQUEST: $request
-                """.trimIndent()
-            },
+            generateRequest = ::claudeDraftRequest,
         )
+
+    internal fun claudeDraftRequest(request: DeclineRequest): String =
+        """
+        Draft the best plan to get Baruch out of this obligation. Choose a flavor,
+        write the message to the organizer, and write a brief hallway script.
+        Honor the user's current instruction. Account for recently used flavors and
+        known attendees. Choose a different approach from previouslyProposedFlavors;
+        those were suggestions the user wants to move past, not sent-history records.
+        You are drafting only: no calendar event has been created, so set
+        fakeCalendarEventId to null. Do not claim you took any external action.
+
+        CONTEXT: ${Scenario.USER_CONTEXT}
+        OBLIGATION: ${Scenario.EVENT_TITLE}
+        REQUEST: $request
+        """.trimIndent()
 
     fun claudeRefiner(): CliAIAgent<String, CliAgentStructuredResponse<DeclineDeployment>> =
         CliAIAgent.claude(
@@ -60,7 +63,9 @@ object CliCritic {
             generateRequest = { feedback: String ->
                 """
                 Revise the proposed plan using the judge's feedback. Return the complete
-                revised plan. No calendar event has been created, so set
+                revised plan. Keep honoring the user's instruction and avoid the request's
+                previouslyProposedFlavors; do not return to a suggestion the user moved past.
+                No calendar event has been created, so set
                 fakeCalendarEventId to null. Do not claim you took any external action.
 
                 CONTEXT: ${Scenario.USER_CONTEXT}

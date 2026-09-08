@@ -57,6 +57,14 @@ public data class DeclineRequest(
     val knownAttendees: List<String>,
     @property:LLMDescription("Who runs the session - they receive the decline")
     val organizerName: String,
+    @property:LLMDescription("The user's current instruction, including requested changes to a previous plan")
+    val userInstruction: String = "",
+    @property:LLMDescription(
+        "For a request for another approach, flavors already proposed for this obligation in this " +
+        "conversation that the new plan must avoid. These are suggestions, not sent-history records. " +
+        "Empty for an initial request."
+    )
+    val previouslyProposedFlavors: List<ExcuseFlavor> = emptyList(),
 )
 
 @Serializable

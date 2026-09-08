@@ -55,9 +55,11 @@ fun main(): Unit = runBlocking {
         }
         try {
             println("\n${Persona.WELCOME} Blank line or ctrl-D quits.\n")
+            var next: String? = null
             while (true) {
-                print("you: ")
-                val line = readlnOrNull()?.trim()
+                if (next == null) print("you: ")
+                val line = next ?: readlnOrNull()?.trim()
+                next = null
                 if (line.isNullOrEmpty()) break
                 var deliveryAttempted = false
                 try {
@@ -71,11 +73,10 @@ fun main(): Unit = runBlocking {
                             println("flavor: ${plan.flavor}\nmessage: ${plan.messageToOrganizer}\nhallway: ${plan.hallwayScript}")
                             val sent = deliverApproved(result,
                                 confirm = {
-                                    print("Send it? [y/N] ")
+                                    print("Send it? [send/y/N, or tell me what to change] ")
                                     val answer = if (autoSend) { println("y (mock rehearsal)"); "y" }
                                     else readlnOrNull()?.trim().orEmpty()
-                                    conversation.user(answer)
-                                    answer.lowercase() in setOf("y", "yes")
+                                    conversation.confirmSend(answer) { next = it }
                                 },
                                 send = {
                                     deliveryAttempted = true
