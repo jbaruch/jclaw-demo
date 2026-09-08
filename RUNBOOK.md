@@ -2,14 +2,49 @@
 
 IntelliJ IDEA Conf 2026 · Day 1, 15:00–16:00 CEST · Baruch (Koog) + Viktor (LangChain4j Agentic)
 
+
+## Never `gradle run`. Use `./jclaw`.
+
+`gradle run` does not return. Measured, with and without the daemon: the app JVM
+exits, the mock JVMs exit, and Gradle sits there with three live processes until you
+Ctrl-C it. Nothing in the application can fix this — it was verified by instrumenting
+the exit path and then watching the process table while Gradle hung.
+
+Gradle's `run` task is the wrong tool for a demo. `./jclaw` builds with Gradle and
+runs the installed start script. Faster as well, for skipping Gradle startup.
+
+## Before you go live — WARM EVERY BRANCH
+
+The rounds are branches (`round1`..`round4`), one `app/src/main/kotlin/jclaw/Main.kt`
+that changes underneath you. Switch off-camera while Viktor is presenting.
+
+**The first run on a branch after a checkout recompiles.** A cold branch took over 6
+minutes; warm it is seconds. Warm all four before the stream:
+
+```bash
+for b in round1 round2 round3 round4; do
+  git checkout $b && ./gradlew -q :app:installDist
+done
+git checkout round1
+```
+
+Do not skip this. It is the difference between a 20-second demo and dead air.
+
+**Use `./jclaw`, never `gradle run`.** `gradle run` never returns: the app exits
+correctly but the MCP mocks inherit Gradle's stderr and Gradle waits on it forever, so
+the terminal hangs after every successful round. `./jclaw` runs the installed start
+script instead — same work, no hang, and faster for skipping Gradle startup.
+
+`./jclaw` always rebuilds. `build/` is gitignored and survives a checkout, so a
+"binary already exists" shortcut would silently run the PREVIOUS round.
+
 ## Before you go live
 
 ```bash
 export GOOGLE_API_KEY=...          # from vault secrets.json -> gemini.api_key
 cd ~/Projects/jclaw-ideaconf
 gradle :mocks:mcpJars              # builds calendar-mcp.jar + organizer-mcp.jar
-gradle :round1-chatbot:compileKotlin :round2-tools-mcp:compileKotlin \
-       :round3-memory:compileKotlin :round4-pipeline:compileKotlin
+# (warming, above, already builds every branch)
 ```
 
 Warm the Gradle daemon and the Maven cache with one throwaway `:round1-chatbot:run`
@@ -18,17 +53,19 @@ is not interesting to watch.
 
 ## The four rounds
 
-| Round | Command | Runtime | What the audience should see |
+**Every round is a chat loop — you TYPE at it.** Blank line or ctrl-D quits.
+
+| Round | Command | Per turn | What to type, and what they should see |
 |---|---|---|---|
-| 1 | `gradle :round1-chatbot:run` | ~15s | One factory call. It answers charmingly, does nothing. |
-| 2 | `gradle :round2-tools-mcp:run` | ~45s | Tool trace scrolling. It stages a fake meeting and sends. **It reuses a burned excuse.** |
-| 3 | `gradle :round3-memory:run` | ~40s | Same prompt. It names all three burned excuses, picks fresh. Invents a category nothing checks. Run it again: a new process, and it knows what the first one sent, from `memory/documents/`. |
-| 4 | `gradle :round4-pipeline:run` | ~90s | Typed pipeline, sliced tools, critic. Lands `ALREADY_PROFICIENT`. |
-| 4-TUI | `gradle :round4-pipeline:runTui` | ~90s | **Three-pane terminal UI.** Subtask boundaries and tool calls in a TRACE pane instead of scrolling stdout. Prefer this on a stream. |
-| 4b | `JCLAW_NAIVE=1 gradle :round4-pipeline:run` | ~2m | Same pipeline, constraint stripped. Reaches for a burned excuse. **Critic catches it, refine fixes it.** |
-| 5 | `JCLAW_LEVEL=4 gradle :round4-pipeline:runSkills` | ~25s | Discovers SKILL.md on disk, reads it on screen, applies it. |
-| 5b | `JCLAW_LEVEL=11 gradle :round4-pipeline:runSkills` | ~25s | Same skill at 11. Unreadable. Every clause still true. |
-| 4c | `JCLAW_CRITIC=cli gradle :round4-pipeline:run` | **~4m** | Critic is Claude Code on subscription, not Gemini. Showpiece only — see below. |
+| 1 | `./jclaw 1` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
+| 2 | `./jclaw 2` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
+| 3 | `./jclaw 3` | ~10s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. Memory is `memory/documents/` on disk; a bare `./jclaw` re-run is a new process that knows what the first one sent. |
+| 4 | `./jclaw 4` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
+| plain | `./jclaw plain` | — | Any round on stdout instead of the TUI. Paste the sentence (it is on the clipboard); the send gate is `y`. The fallback if the TUI misbehaves. |
+| 4b | `JCLAW_NAIVE=1 ./jclaw` | ~40s | Constraint stripped. Reaches for a burned excuse. Critic catches it. |
+| 4c | `JCLAW_CRITIC=cli ./jclaw` | ~2-3m | Critic is Claude on subscription. Rejects the fabrication, argues the truth is the stronger play. Cut line. |
+| graph | `./jclaw graph` | ~1s | `pipeline.mmd` from the live strategy. |
+| 5 | `JCLAW_LEVEL=4 ./jclaw skills` / `11` | ~19s | SKILL.md read off disk and applied. |
 
 ### The cross-vendor critic (optional showpiece)
 
@@ -47,7 +84,11 @@ Gemini critic is the default for a reason.
 A critic that returns nothing parseable is treated as a **rejection**, not an
 approval. Fail closed.
 
-`JCLAW_AUTOSEND=1` skips the y/N confirmation gate — use it only if you are short
+**The approval gate is a graph node.** After the critic approves, `approve` calls
+`awaitApproval` and blocks on you — type `y` in the terminal (or the prompt pane in the
+TUI). It is not a tool the model may skip; it always fires.
+
+`JCLAW_AUTOSEND=1` answers it for you and skips the send gate — use it only if you are short
 on time. The gate is a talking point: the model never sends anything.
 
 ## Round 4 — the A/B, in order
@@ -55,8 +96,8 @@ on time. The gate is a talking point: the model never sends anything.
 Run the **naive** one first if you want the critic to earn its keep on camera:
 
 ```bash
-JCLAW_NAIVE=1 gradle :round4-pipeline:run     # fails, critic rejects, refine fixes
-gradle :round4-pipeline:run                   # clean, first-pass approval
+JCLAW_NAIVE=1 ./gradlew run     # fails, critic rejects, refine fixes
+./gradlew run                   # clean, first-pass approval
 ```
 
 Ask the chat to predict what breaks *before* you run the naive one. It is the only
@@ -73,19 +114,45 @@ audience-participation beat that works without a room.
 - **Anything else** → round 3 is the safe fallback. It is visually similar to round 4
   and always completes in 40s.
 
-## The TUI build — VERIFY THIS ON A REAL TERMINAL FIRST
+## The TUI — all four rounds, as at JNation
 
-`gradle :round4-pipeline:runTui` runs round 4 inside the TamboUI three-pane UI kept
-from the JNation build (chat pane, trace pane, prompt input, busy spinner). It compiles
-against tamboui 0.4.0 unchanged and starts without error, **but it has only been smoke
-tested under a pseudo-terminal, never driven by hand.** Run it once in your actual
-terminal at your actual streaming font size before you rely on it.
+`./jclaw N` opens every round in the TamboUI three-pane UI (chat, trace, prompt, busy
+spinner) with the round's opening sentence already asked. Tool calls, the mock servers'
+own log lines, and memory reads and writes land in TRACE. Follow-ups are typed into
+PROMPT. Round 4's send gate is the word `send` typed into PROMPT rather than `y`;
+`JCLAW_NAIVE` and `JCLAW_CRITIC` work as usual.
 
-Both env flags work here too (`JCLAW_NAIVE`, `JCLAW_CRITIC`). The send gate is the word
-`send` typed into the prompt pane rather than `y`.
+The header names the round and lights one badge per feature as the rounds go: MCP,
+MEMORY, WORKFLOW. Round 4 adds a FLOW row, `identify → deploy → verify ⇄ refine`,
+driven by Koog's own subgraph events: the running stage yellow, finished ones green.
+Whatever a library prints (kotlin-logging, SLF4J) goes to `jclaw-tui.log`, not the screen.
 
-If it misbehaves on the day, `gradle :round4-pipeline:run` is the same pipeline on
-stdout and is the build that has been dry-run repeatedly.
+Every round's TUI has been smoke-tested under a pseudo-terminal: panes rendered, the
+sentence asked, tool calls and replies drawn. **Drive each round once by hand in your
+actual terminal at your actual streaming font size before you rely on it.**
+
+If it misbehaves on the day, `./jclaw plain` is the same round on stdout: paste the
+sentence, answer `y` at the send gate.
+
+## Which model, and why
+
+Default is **`gemini-3.7-flash`**, chosen by measuring rather than by version number.
+Same pipeline, same prompts:
+
+| model | round 4 |
+|---|---|
+| gemini-3.5-flash | 60s |
+| gemini-3.6-flash | 37s |
+| **gemini-3.7-flash** | **~20s** |
+| gemini-3.8-flash | ~30s |
+
+Newer is not automatically faster — 3.8 is consistently slower than 3.7 — and 3.7 was
+the only one that picked `ALREADY_PROFICIENT` on every run, naive runs included.
+Override with `JCLAW_FLASH=3.8 ./jclaw`.
+
+Koog 1.2's `GoogleModels` stops at 3.5; 3.6/3.7/3.8 are declared in `Models.kt`,
+six lines each. Worth saying out loud: the framework shipped ten days ago and already
+trails the models it talks to, and you are one declaration away from catching up.
 
 ## Known behaviour, not bugs
 
