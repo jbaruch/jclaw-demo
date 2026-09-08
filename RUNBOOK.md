@@ -33,12 +33,14 @@ measurements do not establish this pipeline's runtime. Allow for subscription CL
 startup, model calls, and up to two refinements. Each CLI call has a three-minute
 timeout; that is a failure bound, not a promise about total runtime.
 
-Validation on 2026-09-08: the full build and 19 deterministic tests passed (7 review/
-send-gate tests and 12 typed-adapter tests). One integrated smoke run with fresh
-seeded temporary memory took **65.0 seconds**: all three providers ran, Codex
-rejected unsupported wording, Claude refined, and Codex approved
-`ALREADY_PROFICIENT`. Human `n` held the plan and no send call occurred. This is one
-smoke observation, not a stage timing guarantee or a promised model response.
+Validation on 2026-09-08: the full build and 21 deterministic tests passed (7 review/
+send-gate, 12 typed-adapter, and 2 telemetry tests). Independent terminal fixtures
+verified live stopwatch redraw without keyboard input, frozen final durations,
+separate retries, and shutdown cleanup. A fresh smoke run took **64.1 seconds**
+wall time: Codex rejected, Claude refined, and Codex approved `ALREADY_PROFICIENT`.
+Human `n` held the plan and no send call occurred. The exported trace contains the
+typed handoffs, both full verdicts, provider metadata, and the supplied judge prompt.
+This is one smoke observation, not a stage timing guarantee or a promised response.
 
 ## The four rounds
 
@@ -172,6 +174,8 @@ After finishing or holding the send, quit cleanly so the agent's remaining spans
 close and flush. Open [the project's traces](https://us.cloud.langfuse.com/project/cmts07jea03ryad0d7jajuw1m/traces),
 refresh, and select the newest `jclaw-round4` with `critic:codex` and
 `drafter:claude-code`. Match its timestamp/session to the run you just completed.
+The [verified 2026-09-08 rehearsal trace](https://us.cloud.langfuse.com/project/cmts07jea03ryad0d7jajuw1m/traces/2c077ed67b9345f2173997f01225605a)
+is available for preparation; identify it as a rehearsal if you use it on stage.
 
 The three-minute walkthrough:
 
