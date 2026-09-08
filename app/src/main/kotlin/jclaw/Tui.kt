@@ -37,7 +37,7 @@ fun main(args: Array<String>) {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, features = listOf("MCP", "MEMORY"))
+    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, features = listOf("MCP", "MEMORY", "SKILLS"))
     var procs: List<Process> = emptyList()
 
     // The agent is created inside its scope; closing it must happen from the TUI's shutdown path.
@@ -45,11 +45,12 @@ fun main(args: Array<String>) {
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
+        val skills = AgentSkills.discover(trace = { tui.trace(it, TraceKind.TOOL_CALL) })
         val (tools, servers) = Mcp.registry("calendar-mcp", "organizer-mcp", onStderr = { tui.trace(it, TraceKind.TOOL_CALL) })
         procs = servers
 
-        // Memory is a directory on disk. memory/documents/ is what j-claw told Dana before:
-        // three committed files today, one more after every run. Nothing is seeded in code.
+        // Memory is a directory on disk. memory/documents/ is previously sent messages:
+        // three committed files today, one more after each confirmed send. Nothing is seeded in code.
         val memory = Memory.open(
             LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001),
             trace = { tui.trace(it.trim(), TraceKind.SUBGRAPH_END) },
@@ -58,9 +59,9 @@ fun main(args: Array<String>) {
         val jclaw = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
-            systemPrompt = PERSONA,
+            systemPrompt = "${Persona.PROMPT}\n${skills.prompt}",
             llmModel = Models.flash,
-            toolRegistry = tools,
+            toolRegistry = tools + skills.registry,
         ) {
             install(LongTermMemory) {
                 retrieval {
@@ -69,12 +70,12 @@ fun main(args: Array<String>) {
                 }
                 ingestion {
                     storage = memory
-                    documentExtractor = Memory.whatJclawToldDana
+                    documentExtractor = Memory.sentDeclines
                     failurePolicy = FailurePolicy.FAIL_FAST
                 }
             }
             if (Observability.enabled) install(OpenTelemetry) {
-                langfuse(3, "memory", metadata = mapOf("model" to Models.flash.id))
+                langfuse(3, "memory", "skills", metadata = mapOf("model" to Models.flash.id))
             }
             handleEvents {
                 onToolCallStarting { tui.trace("   ↪ ${it.toolName}(${it.toolArgs})", TraceKind.TOOL_CALL) }
@@ -87,7 +88,7 @@ fun main(args: Array<String>) {
         }
         closeAgent = { jclaw.close(); Observability.flush() }
 
-        tui.chat("j-claw, with a memory this time.", ChatKind.OK)
+        tui.chat(Persona.WELCOME, ChatKind.OK)
 
         // JclawTui echoes what you type; only the argument needs echoing here.
         var next: String? = args.joinToString(" ").ifBlank { null }

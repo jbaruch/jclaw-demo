@@ -9,8 +9,8 @@
 #   ./jclaw          re-run whatever round is checked out, in the TUI
 #   ./jclaw plain    the same round on stdout, no TUI - paste the sentence there too.
 #                    The fallback if the TUI misbehaves.
-#   ./jclaw tui      round 4 in the three-pane UI          (round4 only)
-#   ./jclaw skills N corporate-speak at intensity N        (round4 only)
+#   ./jclaw tui      alias of the default
+#   ./jclaw skills N 'text' corporate-speak at intensity N (round3 and round4)
 #   ./jclaw graph    emit pipeline.mmd from the strategy   (round4 only)
 #   ./jclaw codex    typed output from Codex               (round4 only)
 #
@@ -58,7 +58,7 @@ esac
 
 case "${1:-run}" in
   tui)    exec app/build/install/app/bin/app-tui ;;
-  skills) export JCLAW_LEVEL="${2:-11}"; exec app/build/install/app/bin/app-skills ;;
+  skills) shift; exec app/build/install/app/bin/app-skills "$@" ;;
   graph)  exec app/build/install/app/bin/app-graph ;;
   codex)  exec app/build/install/app/bin/app-codex ;;
   plain)  exec app/build/install/app/bin/app ;;

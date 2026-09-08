@@ -14,33 +14,23 @@ import ai.koog.prompt.executor.llms.all.simpleGoogleAIExecutor
 import kotlinx.coroutines.runBlocking
 import kotlin.system.exitProcess
 
-/**
- * ROUND 3 - memory.
- *
- * Same tools, same MCP servers, same task as round 2. The only difference is
- * that j-claw now remembers what it told Dana the last three times. The
- * calendar knew he bailed; memory knows the story he used.
- */
-/** A persona. The task arrives in the message, which is where tasks come from. */
-internal const val PERSONA: String =
-    "You are j-claw, Baruch's personal assistant. Don't be fooled by the rocks that " +
-        "he got - he's still Baruch from the block. Be brief, be warm, be useful."
-
+/** Normal chat with MCP tools, persistent memory, and runtime skills. */
 fun main(): Unit = runBlocking {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
+    val skills = AgentSkills.discover()
     val (tools, procs) = Mcp.registry("calendar-mcp", "organizer-mcp")
 
-    // Memory is a directory on disk. memory/documents/ is what j-claw told Dana before:
-    // three committed files today, one more after every run. Nothing is seeded in code.
+    // Memory is a directory on disk. memory/documents/ is previously sent messages:
+    // three committed files today, one more after each confirmed send. Nothing is seeded in code.
     val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
 
     try {
         val jclaw = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
-            systemPrompt = PERSONA,
+            systemPrompt = "${Persona.PROMPT}\n${skills.prompt}",
             llmModel = Models.flash,
-            toolRegistry = tools,
+            toolRegistry = tools + skills.registry,
         ) {
             install(LongTermMemory) {
                 retrieval {
@@ -49,12 +39,12 @@ fun main(): Unit = runBlocking {
                 }
                 ingestion {
                     storage = memory
-                    documentExtractor = Memory.whatJclawToldDana
+                    documentExtractor = Memory.sentDeclines
                     failurePolicy = FailurePolicy.FAIL_FAST
                 }
             }
             if (Observability.enabled) install(OpenTelemetry) {
-                langfuse(3, "memory", metadata = mapOf("model" to Models.flash.id))
+                langfuse(3, "memory", "skills", metadata = mapOf("model" to Models.flash.id))
             }
             handleEvents {
                 onToolCallStarting { println("  -> ${it.toolName}(${it.toolArgs})") }
@@ -62,7 +52,7 @@ fun main(): Unit = runBlocking {
         }
 
         println()
-        println("j-claw, with a memory this time. (blank line or ctrl-D to quit)")
+        println("${Persona.WELCOME} (blank line or ctrl-D to quit)")
         println()
 
         while (true) {

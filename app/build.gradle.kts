@@ -1,6 +1,10 @@
 plugins { application }
 
 dependencies {
+    testImplementation("io.kotest:kotest-runner-junit5:6.0.3")
+    testImplementation("io.kotest:kotest-assertions-core:6.0.3")
+    implementation(libs.koog.skills)
+    implementation(libs.koog.agents.ext)
     implementation(project(":tui"))
     implementation(libs.koog.agents)
     implementation(libs.koog.llms.all)
@@ -50,3 +54,26 @@ val tuiScripts = tasks.register<CreateStartScripts>("startScripts_app-tui") {
     classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
 }
 tasks.named<Sync>("installDist") { into("bin") { from(tuiScripts) { fileMode = 493 } } }
+
+/** Standalone runtime skill runner, also available through normal chat. */
+tasks.register<JavaExec>("runSkills") {
+    group = "application"
+    mainClass.set("jclaw.SkillsKt")
+    classpath = sourceSets.main.get().runtimeClasspath
+    standardInput = System.`in`
+}
+val skillsScripts = tasks.register<CreateStartScripts>("startScripts_app-skills") {
+    applicationName = "app-skills"
+    mainClass.set("jclaw.SkillsKt")
+    defaultJvmOpts = application.applicationDefaultJvmArgs
+    outputDir = layout.buildDirectory.dir("scripts-app-skills").get().asFile
+    classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
+}
+tasks.named<Sync>("installDist") { into("bin") { from(skillsScripts) { fileMode = 493 } } }
+tasks.test { useJUnitPlatform() }
+
+// JavaExec starts in app/; all entry points need the same absolute runtime skill root.
+tasks.withType<JavaExec>().configureEach {
+    systemProperty("jclaw.skills", providers.environmentVariable("JCLAW_SKILLS_ROOT")
+        .orElse(rootProject.layout.projectDirectory.dir("skills").asFile.absolutePath).get())
+}
