@@ -3,14 +3,13 @@
 #
 #   ./jclaw 1        round 1 - switches branch silently, copies the round's opening
 #                    sentence to the clipboard, opens the three-pane TUI. Paste it into
-#                    PROMPT. (Round 1 follow-ups, typed: "ok, not bad! Let's tweak it a
-#                    bit." then "what excuse did you suggest? quote it exactly.")
+#                    PROMPT. In round 1, then ask it to send the email: no tools.
 #   ./jclaw 2|3|4    same for the other rounds
 #   ./jclaw          re-run whatever round is checked out, in the TUI
 #   ./jclaw plain    the same round on stdout, no TUI - paste the sentence there too.
 #                    The fallback if the TUI misbehaves.
-#   ./jclaw tui      round 4 in the three-pane UI          (round4 only)
-#   ./jclaw skills N corporate-speak at intensity N        (round4 only)
+#   ./jclaw tui      alias of the default TUI
+#   ./jclaw skills N "message"  corporate-speak on supplied text (round3/4)
 #   ./jclaw graph    emit pipeline.mmd from the strategy   (round4 only)
 #   ./jclaw codex    typed output from Codex               (round4 only)
 #
@@ -33,8 +32,7 @@ ASK="Get me out of the Basic AI Proficiency Training on Tuesday, run by Dana fro
 
 # Every round opens with the SAME sentence. Identical input, four different
 # behaviours - that is the comparison, so it must not be retyped slightly differently.
-# Round 1's follow-ups ("let's tweak it a bit", then "what did I just ask you about?")
-# are typed by hand; the contradiction between those two answers is the beat.
+# In round 1, push it to send the email. It can draft, but it has no tools.
 seed() {
   if command -v pbcopy >/dev/null 2>&1; then printf '%s' "$ASK" | pbcopy; fi
 }
@@ -43,6 +41,8 @@ case "${1:-run}" in
   1|2|3|4)
     # Preserve local work; fail visibly if a branch switch would overwrite it.
     git switch --quiet "round$1"
+    # A numbered rehearsal starts from committed memory; a bare run retains it.
+    git clean -fdqx -- memory
     seed
     exec ./jclaw            # re-exec: this file may differ on the branch we just entered
     ;;
