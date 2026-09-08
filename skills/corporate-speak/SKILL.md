@@ -1,6 +1,6 @@
 ---
 name: corporate-speak
-description: Rewrite a supplied message in corporate jargon at an intensity from 1 to 11. Use when the user asks for corporate-speak, business jargon, or a more corporate version of an update, request, announcement, apology, or other text.
+description: Rewrite supplied text or the preceding draft in corporate jargon at an intensity from 1 to 11. Use when the user asks for corporate-speak, business jargon, or a more corporate version of an update, request, announcement, apology, or other text. Defaults to ridiculously over-the-top intensity 11.
 ---
 
 # Corporate-speak, up to 11
@@ -13,8 +13,11 @@ the language. The underlying message stays the same.
 
 ## Set the dial
 
-Use the requested intensity from 1 to 11; default to 5 if none is given.
-If there is no source text in the request or conversation, ask for the message.
+Use the requested intensity from 1 to 11; default to 11 if none is given.
+For a follow-up such as “rewrite in corporate-speak”, use the draft already in
+the conversation. Do not ask the user to paste it again. A later request such as
+“tone it down to 4” adjusts that rewrite. Ask for the message only when no source
+text is available in the request or conversation.
 
 | Level | Register | What changes |
 |---|---|---|

@@ -17,7 +17,7 @@ Built against **Koog 1.2.0**, released 2026-08-28.
 |---|---|---|
 | `round1` | 1 | One `AIAgent(...)` factory call; no tools or conversation memory |
 | `round2` | 2 | Tool registry from two mock MCP servers; can act, but cannot remember earlier excuses |
-| `round3` | 3 | Koog `LongTermMemory` over `memory/documents/`, recording successful sends; Agent Skills for generic corporate-speak rewrites at intensity 1–11 |
+| `round3` | 3 | `ChatMemory` keeps the conversation; `LongTermMemory` records successful sends on disk; Agent Skills add corporate-speak at intensity 1–11 |
 | `round4` | 4 | Typed handoffs across Gemini, Claude, and Codex; bounded refinement; a critic veto before human confirmation |
 
 Every branch has the same `app` module and source path,
@@ -32,14 +32,20 @@ The three committed prior declines and newly recorded sends use UUID filenames
 under `memory/documents/`. Memory records the actual outbound message after a
 successful send. Drafts and standalone rewrites are not sent history.
 
-Skills are available in ordinary chat from round 3 onward. For example:
+Conversation memory keeps the current session's messages, including drafts, so
+follow-ups can refer to the answer just shown. A new process starts a new
+conversation; the confirmed sends on disk survive that restart.
 
-> Use the corporate-speak skill at intensity 4 to rewrite this message: The release is delayed because tests are failing. I will send an update tomorrow.
+Skills are available in ordinary chat from round 3 onward. After j-claw produces
+a draft, type:
+
+> rewrite in corporate-speak
 
 The agent discovers and reads `skills/corporate-speak/SKILL.md` through file tools
 visible in TRACE. The skill accepts any supplied message and an intensity from 1
-to 11. It changes the language while preserving the source's facts and intent.
-Repeat the full request at intensity 11 for the exaggerated version.
+to 11, defaulting to ridiculous intensity 11. It rewrites the preceding draft
+without asking you to paste it again, preserving its facts and intent. Optionally
+follow with “tone it down to 4”. A rewrite alone sends nothing.
 
 ## Round 4
 
