@@ -14,14 +14,17 @@ import dev.tamboui.toolkit.Toolkit.richText
 import dev.tamboui.toolkit.Toolkit.text
 import dev.tamboui.toolkit.Toolkit.textInput
 import dev.tamboui.toolkit.app.ToolkitApp
+import dev.tamboui.toolkit.app.ToolkitRunner
 import dev.tamboui.toolkit.element.Element
 import dev.tamboui.toolkit.element.StyledElement
 import dev.tamboui.toolkit.elements.ListElement
 import dev.tamboui.tui.TuiConfig
+import dev.tamboui.tui.event.TickEvent
 import dev.tamboui.widgets.input.TextInputState
 import java.io.FileOutputStream
 import java.io.PrintStream
 import java.nio.file.Path
+import java.time.Duration
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /** What kind of CHAT line — drives the color. */
@@ -31,7 +34,7 @@ enum class ChatKind { JCLAW, YOU, TOOL_RESULT, OK, ERR }
 enum class StageState { PENDING, ACTIVE, DONE, FAILED }
 
 /** What kind of TRACE line — drives the color. */
-enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
+enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM, RUNNING, ERROR }
 
 /**
  * Three-pane TUI for the j-claw demo, plus a ridiculous status line.
@@ -68,7 +71,12 @@ class JclawTui(
     fun resetFlow() = onRenderThread { stageStates.clear() }
 
     private val chatLines: MutableList<Line> = mutableListOf()
-    private val traceLines: MutableList<Pair<String, TraceKind>> = mutableListOf()
+    private val traceLines: MutableList<TraceEntry> = mutableListOf()
+    private val activeTraceStages = mutableMapOf<Pair<String, String>, TraceStopwatch>()
+    private var traceRefresh: ToolkitRunner.ScheduledAction? = null
+    private var startedNanos = System.nanoTime()
+    private var traceTick = 0L
+    @Volatile private var stopped = false
     private val promptInput = TextInputState()
 
     // Persistent ListElement instances. ListElement holds its scroll position
@@ -98,14 +106,28 @@ class JclawTui(
     private val pending = ConcurrentLinkedQueue<Runnable>()
 
     private fun onRenderThread(block: () -> Unit) {
+        if (stopped) return
         val r = runner()
-        if (r == null) pending.add(Runnable(block)) else r.runOnRenderThread(block)
+        val guarded = Runnable { if (!stopped) block() }
+        if (r == null) {
+            pending.add(guarded)
+            if (stopped) pending.remove(guarded)
+        } else r.runOnRenderThread(guarded)
     }
 
     /** Focus the prompt so keystrokes go there, not into a list; replay anything said before we existed. */
     override fun onStart() {
+        stopped = false
+        startedNanos = System.nanoTime()
+        traceTick = 0
         runner()?.focusManager()?.setFocus(PROMPT_ID)
         while (true) (pending.poll() ?: break).run()
+    }
+
+    override fun onStop() {
+        stopped = true
+        finishTraceStagesOnRenderThread(TraceStageState.CANCELLED, System.nanoTime())
+        pending.clear()
     }
 
     fun chat(line: String, kind: ChatKind = ChatKind.JCLAW) {
@@ -114,8 +136,69 @@ class JclawTui(
     }
 
     fun trace(line: String, kind: TraceKind = TraceKind.TOOL_CALL) {
-        val rows = wrap(line).map { it to kind }
+        val rows = wrap(line).map { TraceMessage(it, kind) }
         onRenderThread { traceLines.addAll(rows) }
+    }
+
+    /** Update one invocation in place; another STARTED for the same phase gets a fresh row. */
+    fun traceStage(stage: String, provider: String, state: TraceStageState) {
+        // Capture at the event, not when a busy render thread eventually applies it.
+        val eventNanos = System.nanoTime()
+        onRenderThread {
+            val key = stage to provider
+            if (state == TraceStageState.STARTED) {
+                activeTraceStages.remove(key)?.finish(TraceStageState.CANCELLED, eventNanos)
+                val stopwatch = TraceStopwatch(stage, provider, eventNanos)
+                activeTraceStages[key] = stopwatch
+                traceLines.add(stopwatch)
+                if (traceRefresh == null) {
+                    val r = runner()
+                    traceRefresh = r?.scheduleRepeating({
+                        r.runOnRenderThread {
+                            if (!stopped && activeTraceStages.isNotEmpty()) redrawTrace()
+                        }
+                    }, Duration.ofSeconds(1))
+                }
+            } else {
+                activeTraceStages.remove(key)?.finish(state, eventNanos)
+                if (activeTraceStages.isEmpty()) stopTraceRefresh()
+            }
+            redrawTrace()
+        }
+    }
+
+    /** Finish any phases left open when a request returns, fails, or is cancelled. */
+    fun finishTraceStages(state: TraceStageState) {
+        require(state != TraceStageState.STARTED) { "A terminal phase outcome is required" }
+        val eventNanos = System.nanoTime()
+        onRenderThread {
+            finishTraceStagesOnRenderThread(state, eventNanos)
+            redrawTrace()
+        }
+    }
+
+    private fun finishTraceStagesOnRenderThread(state: TraceStageState, eventNanos: Long) {
+        activeTraceStages.forEach { (key, stopwatch) ->
+            stopwatch.finish(state, eventNanos)
+            stageStates[key.first] = if (state == TraceStageState.COMPLETED) StageState.DONE else StageState.FAILED
+        }
+        activeTraceStages.clear()
+        stopTraceRefresh()
+        busyDepth = 0
+        statusText = null
+    }
+
+    private fun stopTraceRefresh() {
+        traceRefresh?.cancel()
+        traceRefresh = null
+    }
+
+    private fun redrawTrace() {
+        // In TamboUI 0.4.0 UiRunnable alone does not redraw. A tick goes through the
+        // normal Toolkit event path, which renders on the render thread even when idle.
+        runner()?.tuiRunner()?.dispatch(
+            TickEvent(++traceTick, Duration.ofNanos((System.nanoTime() - startedNanos).coerceAtLeast(0))),
+        )
     }
 
     /** Call when an LLM call starts. Rotates to a fresh ridiculous phrase. */
@@ -151,6 +234,8 @@ class JclawTui(
         TraceKind.SUBGRAPH_END   -> text(line).fg(Color.GREEN)            // phase result
         TraceKind.TOOL_CALL      -> text(line).fg(Color.CYAN)             // every tool invocation
         TraceKind.LLM            -> text(line).fg(Color.GRAY)             // every model call
+        TraceKind.RUNNING        -> text(line).fg(Color.YELLOW)           // elapsed phase time, in place
+        TraceKind.ERROR          -> text(line).fg(Color.RED)              // failed or cancelled phase
     }
 
     private fun badge(label: String, bg: Color): Element =
@@ -197,8 +282,9 @@ class JclawTui(
         // list elements themselves — that keeps the user's scroll position alive.
         val chatItems: Array<StyledElement<*>> = chatLines.takeLast(MAX_LINES)
             .map { richText(Text.from(it)) }.toTypedArray()
+        val nowNanos = System.nanoTime()
         val traceItems: Array<StyledElement<*>> = traceLines.takeLast(MAX_LINES)
-            .map { (txt, kind) -> traceText(txt, kind) }.toTypedArray()
+            .map { traceText(it.text(nowNanos), it.kind) }.toTypedArray()
         chatListElement.elements(*chatItems)
         traceListElement.elements(*traceItems)
 

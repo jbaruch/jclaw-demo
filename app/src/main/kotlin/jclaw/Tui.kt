@@ -15,6 +15,7 @@ import com.jbaruch.jclaw.tui.ChatKind
 import com.jbaruch.jclaw.tui.JclawTui
 import com.jbaruch.jclaw.tui.StageState
 import com.jbaruch.jclaw.tui.TraceKind
+import com.jbaruch.jclaw.tui.TraceStageState
 import jclaw.domain.Scenario
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -75,7 +76,11 @@ fun main(args: Array<String>) {
             ),
             strategy = jclawStrategy(mcp, naive,
                 onStage = { stage, model, state ->
-                    tui.trace("$stage · $model · $state", TraceKind.LLM)
+                    tui.traceStage(stage, model, when (state) {
+                        PipelineStageState.STARTED -> TraceStageState.STARTED
+                        PipelineStageState.COMPLETED -> TraceStageState.COMPLETED
+                        PipelineStageState.FAILED -> TraceStageState.FAILED
+                    })
                     tui.stage(stage, when (state) {
                         PipelineStageState.STARTED -> StageState.ACTIVE
                         PipelineStageState.COMPLETED -> StageState.DONE
@@ -105,11 +110,19 @@ fun main(args: Array<String>) {
             }
             handleEvents {
                 onSubgraphExecutionStarting {
-                    tui.trace("┌─ ▶ ${it.subgraph.name}", TraceKind.SUBGRAPH_START)
+                    if (it.subgraph.name in setOf("classify", "identify", "chatReply")) {
+                        tui.traceStage(it.subgraph.name, "${Models.flash.id} (API)", TraceStageState.STARTED)
+                    } else {
+                        tui.trace("┌─ ▶ ${it.subgraph.name}", TraceKind.SUBGRAPH_START)
+                    }
                     tui.stage(it.subgraph.name, StageState.ACTIVE)
                 }
                 onSubgraphExecutionCompleted {
-                    tui.trace("└─ ✓ ${it.subgraph.name}", TraceKind.SUBGRAPH_END)
+                    if (it.subgraph.name in setOf("classify", "identify", "chatReply")) {
+                        tui.traceStage(it.subgraph.name, "${Models.flash.id} (API)", TraceStageState.COMPLETED)
+                    } else {
+                        tui.trace("└─ ✓ ${it.subgraph.name}", TraceKind.SUBGRAPH_END)
+                    }
                     tui.stage(it.subgraph.name, StageState.DONE)
                 }
                 onToolCallStarting { tui.trace("   ↪ ${it.toolName}(${it.toolArgs})", TraceKind.TOOL_CALL) }
@@ -138,6 +151,7 @@ fun main(args: Array<String>) {
             try {
                 tui.resetFlow()
                 val result = agent.run(prompt)
+                tui.finishTraceStages(TraceStageState.COMPLETED)
                 if (result is JclawResult.ChatReply) {
                     tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
                     continue
@@ -172,8 +186,10 @@ fun main(args: Array<String>) {
                 )
                 if (!delivered) tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
             } catch (c: CancellationException) {
+                tui.finishTraceStages(TraceStageState.CANCELLED)
                 throw c
             } catch (t: Throwable) {
+                tui.finishTraceStages(TraceStageState.FAILED)
                 tui.chat(
                     if (deliveryAttempted) "Delivery attempt failed: ${t.message}. Check the organizer receipt before retrying."
                     else "BLOCKED: ${t.message ?: t.javaClass.simpleName}. Nothing was sent.",

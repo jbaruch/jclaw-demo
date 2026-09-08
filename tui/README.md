@@ -2,7 +2,8 @@
 
 Shared **TamboUI** three-pane shell, used by every round (`./jclaw N`). `JclawTui.kt`
 owns the shell; `ChatMarkdown.kt` renders model replies through native Markdown.
-Both sides of the talk can embed the module, so the on-stage interface is the same.
+`TraceStopwatch.kt` records phase durations. Both sides of the talk can embed the
+module, so the on-stage interface is the same.
 
 ## Layout
 
@@ -25,6 +26,11 @@ Both sides of the talk can embed the module, so the on-stage interface is the sa
 - `chat(line, ChatKind)`, `trace(line, TraceKind)`, `startBusy()` / `stopBusy()`,
   `stage(name, StageState)`, `resetFlow()` - safe from any thread. Calls made before
   the runner exists are queued and replayed in `onStart`.
+- `traceStage(stage, provider, TraceStageState)` gives each phase invocation one
+  stopwatch row. `STARTED (running 20s)` updates in place each second; completion,
+  failure, or cancellation freezes the elapsed time. Repeated phases get new rows.
+  `finishTraceStages(terminalState)` closes any unfinished phases and clears the busy
+  status when a request ends. The refresh task stops when idle or when the TUI closes.
 - `JclawTui.quietStdStreams(path)` - call it first thing in `main`. Anything a library
   prints to stdout or stderr while the TUI owns the terminal lands on screen and stays
   there. `restoreStdStreams()` before reporting a fatal error.
