@@ -1,6 +1,7 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
+import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
 import jclaw.Observability.langfuse
@@ -56,13 +57,15 @@ fun main(args: Array<String>) {
             trace = { tui.trace(it.trim(), TraceKind.SUBGRAPH_END) },
         )
 
+        val conversation = Conversation("${Persona.PROMPT}\n${skills.prompt}")
         val jclaw = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
-            systemPrompt = "${Persona.PROMPT}\n${skills.prompt}",
+            systemPrompt = conversation.systemPrompt,
             llmModel = Models.flash,
             toolRegistry = tools + skills.registry,
         ) {
+            install(ChatMemory) { conversation.configure(this) }
             install(LongTermMemory) {
                 retrieval {
                     storage = memory
@@ -98,7 +101,7 @@ fun main(args: Array<String>) {
             val prompt = next ?: submissions.receive()
             next = null
             try {
-                tui.chat("j-claw: " + jclaw.run(prompt), ChatKind.JCLAW)
+                tui.chat("j-claw: " + conversation.run(jclaw, prompt), ChatKind.JCLAW)
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {

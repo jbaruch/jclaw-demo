@@ -46,4 +46,13 @@ class MemoryReceiptTest : StringSpec({
             Message.Assistant("Here is the rewritten update. I sent it.", ResponseMetaInfo.Empty),
         )).size shouldBe 0
     }
+    "loaded receipts from a prior turn are not ingested again after an unrelated rewrite" {
+        val firstTurn = listOf(Message.User("Send this decline.", RequestMetaInfo.Empty), call(), receipt())
+        Memory.sentDeclines.extract(firstTurn).size shouldBe 1
+        Memory.sentDeclines.extract(firstTurn + listOf(
+            Message.User("rewrite in corporate-speak", RequestMetaInfo.Empty),
+            Message.Assistant("An unsent rewrite.", ResponseMetaInfo.Empty),
+        )).size shouldBe 0
+    }
+
 })

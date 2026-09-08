@@ -1,6 +1,7 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
+import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
 import jclaw.Observability.langfuse
@@ -25,13 +26,15 @@ fun main(): Unit = runBlocking {
     val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
 
     try {
+        val conversation = Conversation("${Persona.PROMPT}\n${skills.prompt}")
         val jclaw = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
-            systemPrompt = "${Persona.PROMPT}\n${skills.prompt}",
+            systemPrompt = conversation.systemPrompt,
             llmModel = Models.flash,
             toolRegistry = tools + skills.registry,
         ) {
+            install(ChatMemory) { conversation.configure(this) }
             install(LongTermMemory) {
                 retrieval {
                     storage = memory
@@ -60,7 +63,7 @@ fun main(): Unit = runBlocking {
             val line = readlnOrNull()?.trim()
             if (line.isNullOrEmpty()) break
             println()
-            println("j-claw: " + jclaw.run(line))
+            println("j-claw: " + conversation.run(jclaw, line))
             println()
         }
         // Closing ends the spans Koog still holds; the flush ships them (see Observability).
