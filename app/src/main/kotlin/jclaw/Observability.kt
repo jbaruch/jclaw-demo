@@ -5,7 +5,14 @@ import ai.koog.agents.features.opentelemetry.feature.OpenTelemetryConfig
 import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseSpanAdapter
 import ai.koog.agents.features.opentelemetry.integration.otlp.OtlpJsonSpanExporter
 import io.opentelemetry.kotlin.ExperimentalApi
+import io.opentelemetry.kotlin.export.OperationResultCode
+import io.opentelemetry.kotlin.tracing.export.SpanExporter
 import io.opentelemetry.kotlin.tracing.export.SpanProcessor
+import io.opentelemetry.kotlin.tracing.data.SpanData
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import io.opentelemetry.kotlin.tracing.export.batchSpanProcessor
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -39,6 +46,31 @@ object Observability {
         "jclaw-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
 
     private var processor: SpanProcessor? = null
+    private var exporter: Shipments? = null
+
+    /**
+     * Counts exports in flight, so flush() can wait for the last one to land. The batch
+     * processor's own forceFlush() gives up after five seconds, and a batch that carries
+     * whole prompts can take longer than that to ship; it keeps shipping in the
+     * background, and the process must not exit until it is done.
+     */
+    private class Shipments(private val delegate: SpanExporter) : SpanExporter {
+        val inFlight = AtomicInteger(0)
+        val lastActivity = AtomicLong(System.nanoTime())
+        val spansShipped = AtomicInteger(0)
+
+        override suspend fun export(telemetry: List<SpanData>): OperationResultCode {
+            inFlight.incrementAndGet(); lastActivity.set(System.nanoTime())
+            try {
+                return delegate.export(telemetry).also { if (it == OperationResultCode.Success) spansShipped.addAndGet(telemetry.size) }
+            } finally {
+                inFlight.decrementAndGet(); lastActivity.set(System.nanoTime())
+            }
+        }
+
+        override suspend fun forceFlush(): OperationResultCode = delegate.forceFlush()
+        override suspend fun shutdown(): OperationResultCode = delegate.shutdown()
+    }
 
     fun OpenTelemetryConfig.langfuse(round: Int, vararg tags: String, metadata: Map<String, String> = emptyMap()) {
         setServiceInfo("j-claw", RELEASE)
@@ -54,12 +86,14 @@ object Observability {
         // shut down on purpose; the process exit does that, after the flush.
         val host = System.getenv("LANGFUSE_HOST") ?: System.getenv("LANGFUSE_BASE_URL") ?: "https://cloud.langfuse.com"
         val auth = Base64.getEncoder().encodeToString("${env("LANGFUSE_PUBLIC_KEY")}:${env("LANGFUSE_SECRET_KEY")}".toByteArray())
-        val exporter = OtlpJsonSpanExporter(
-            endpoint = "$host/api/public/otel/v1/traces",
-            headers = mapOf("Authorization" to "Basic $auth"),
-            timeout = 10.seconds,
-        )
-        addSpanProcessor { batchSpanProcessor(exporter).also { processor = it } }
+        val shipments = Shipments(
+            OtlpJsonSpanExporter(
+                endpoint = "$host/api/public/otel/v1/traces",
+                headers = mapOf("Authorization" to "Basic $auth"),
+                timeout = 10.seconds,
+            )
+        ).also { exporter = it }
+        addSpanProcessor { batchSpanProcessor(shipments).also { processor = it } }
         addLangfuseSpanAdapter(
             traceAttributes = listOf(
                 CustomAttribute("langfuse.trace.name", "jclaw-round$round"),
@@ -80,8 +114,18 @@ object Observability {
      * invocation that is the root of the trace - and only then are they in the queue.
      */
     suspend fun flush() {
+        val shipments = exporter ?: return
         processor?.forceFlush()
+        // forceFlush returns when the queue is handed to the exporter, or after its own
+        // five-second cap. Either way, wait for the exports themselves to finish: nothing
+        // in flight, and nothing started for half a second.
+        withTimeoutOrNull(30_000) {
+            while (shipments.inFlight.get() > 0 || System.nanoTime() - shipments.lastActivity.get() < 500_000_000L) delay(100)
+        }
     }
+
+    /** How many spans reached Langfuse so far, for a closing trace line. */
+    val spansShipped: Int get() = exporter?.spansShipped?.get() ?: 0
 
     private fun env(name: String): String = requireNotNull(System.getenv(name)) { "$name is not set" }
 }
