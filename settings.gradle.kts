@@ -6,4 +6,4 @@ dependencyResolutionManagement { repositories { mavenCentral() } }
 
 rootProject.name = "jclaw-demo"
 
-include(":app")
+include(":tui", ":app")
