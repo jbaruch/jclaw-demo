@@ -57,8 +57,8 @@ is not interesting to watch.
 
 | Round | Command | Per turn | What to type, and what they should see |
 |---|---|---|---|
-| 1 | `./jclaw 1` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
-| 2 | `./jclaw 2` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
+| 1 | `./jclaw 1` | ~8s | Paste the opening ask, read the draft, then type **"Send Dana an email declining the Basic AI Proficiency Training on Tuesday."** It has no tools to send it. Show the factory without a tool registry. |
+| 2 | `./jclaw 2` | ~17s | Same ask. Watch the actual mock `sendDecline` call, then inspect which prior excuses it claims to avoid. **It has tools but no memory:** the calendar records declined sessions, not the reasons. Read the live answer rather than promising a repeat. |
 | 3 | `./jclaw 3` | ~10s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. Memory is `memory/documents/` on disk; a bare `./jclaw` re-run is a new process that knows what the first one sent. |
 | 4 | `./jclaw 4` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
 | plain | `./jclaw plain` | — | Any round on stdout instead of the TUI. Paste the sentence (it is on the clipboard); the send gate is `y`. The fallback if the TUI misbehaves. |
