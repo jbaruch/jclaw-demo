@@ -1,28 +1,35 @@
 # tui/
 
-Shared **TamboUI** TUI shell. Both Koog and LangChain4j Agentic apps embed this module so the on-stage interface is visually identical between the two sides.
+Shared **TamboUI** three-pane shell, used by every round (`./jclaw N`). One module, one
+file: `JclawTui.kt`. Both sides of the talk can embed it, so the on-stage interface is
+the same.
 
-## Layout — three panes
+## Layout
 
-```
-┌─ j-claw ─────────────────────────────────────────────────┐
-│  CHAT                                                    │  ← user types, agent replies here
-├──────────────────────────────────────────────────────────┤
-│  TRACE                                                   │  ← subtask names, tool calls, models, durations
-├──────────────────────────────────────────────────────────┤
-│  PROMPT                                                  │  ← input + keyboard y/n reaction
-└──────────────────────────────────────────────────────────┘
-```
+    ROUND 3 · MEMORY   MCP   MEMORY                   <- header: the round, one badge per feature
+    FLOW  identify ✓ → deploy ● → verify · ⇄ refine · <- round 4 only: the pipeline, live
+    ┌ CHAT ───────────────────────────────────────┐   <- you and j-claw
+    └─────────────────────────────────────────────┘
+    ┌ TRACE ──────────────────────────────────────┐   <- model calls, tool calls, MCP server log
+    └─────────────────────────────────────────────┘      lines, memory reads/writes, subgraph entry/exit
+    ⏳ status line while a model call is in flight
+    ┌ PROMPT ─────────────────────────────────────┐   <- Enter submits; the TUI echoes "you: …" itself
+    └─────────────────────────────────────────────┘
 
-- **CHAT** — message thread between user and j-claw
-- **TRACE** — driven by Koog's `handleEvents { ... }` or LC4J's event hooks. Every subtask entry/exit + every tool call adds a line
-- **PROMPT** — keyboard input. `y` = 👍, `n` = 👎. The agent's `awaitReaction` tool blocks on this keystroke
+## API
 
-## Header color
-
-- Baruch's Koog side: green
-- Viktor's LC4J side: yellow
+- `JclawTui(onSubmit, title, features, flow)` - `features` become header badges (cyan,
+  magenta, yellow, in order); `flow` is stage names and connector arrows.
+- `chat(line, ChatKind)`, `trace(line, TraceKind)`, `startBusy()` / `stopBusy()`,
+  `stage(name, StageState)`, `resetFlow()` - safe from any thread. Calls made before
+  the runner exists are queued and replayed in `onStart`.
+- `JclawTui.quietStdStreams(path)` - call it first thing in `main`. Anything a library
+  prints to stdout or stderr while the TUI owns the terminal lands on screen and stays
+  there. `restoreStdStreams()` before reporting a fatal error.
 
 ## Render-thread discipline
 
-Per `jbaruch/tamboui` tile rule `render-thread-discipline`: all UI mutations on the render thread; from agent callbacks use `runOnRenderThread { ... }`.
+All UI mutation happens on the render thread via `runOnRenderThread`; the public
+methods above marshal for you. Chat and trace text is pre-wrapped to `JCLAW_WRAP`
+columns (default 88), because TamboUI's auto-wrap clips with an ellipsis inside a
+column.

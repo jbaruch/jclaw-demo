@@ -23,6 +23,9 @@ import java.util.concurrent.ConcurrentLinkedQueue
 /** What kind of CHAT line — drives the color. */
 enum class ChatKind { JCLAW, YOU, TOOL_RESULT, OK, ERR }
 
+/** A pipeline stage's state in the FLOW row. */
+enum class StageState { PENDING, ACTIVE, DONE, FAILED }
+
 /** What kind of TRACE line — drives the color. */
 enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
 
@@ -49,7 +52,17 @@ class JclawTui(
     private val title: String = "j-claw",
     /** One badge per feature this round has, in order: the deck lights them up round by round. */
     private val features: List<String> = emptyList(),
+    /** The pipeline as stage names and connector arrows, e.g. identify, →, deploy, →, verify, ⇄, refine. */
+    private val flow: List<String> = emptyList(),
 ) : ToolkitApp() {
+
+    private val stageStates = HashMap<String, StageState>()
+
+    /** Light a stage up in the FLOW row: call from the subgraph start/complete events. */
+    fun stage(name: String, state: StageState) = onRenderThread { stageStates[name] = state }
+
+    /** Every prompt is a fresh run through the pipeline. */
+    fun resetFlow() = onRenderThread { stageStates.clear() }
 
     private val chatLines: MutableList<Pair<String, ChatKind>> = mutableListOf()
     private val traceLines: MutableList<Pair<String, TraceKind>> = mutableListOf()
@@ -142,6 +155,31 @@ class JclawTui(
 
     private fun gap(): Element = text(" ").constraint(Constraint.length(1))
 
+    /** The handoff, live: the active stage is yellow, finished ones green, the rest gray. */
+    private fun flowRow(): Element? {
+        if (flow.isEmpty()) return null
+        val cells = ArrayList<Element>()
+        cells += badge("FLOW", Color.GREEN)
+        for (item in flow) {
+            cells += gap()
+            cells += if (item in CONNECTORS) {
+                text(item).fg(Color.GRAY).constraint(Constraint.length(item.length))
+            } else {
+                val (mark, color) = when (stageStates[item]) {
+                    StageState.ACTIVE -> "●" to Color.YELLOW
+                    StageState.DONE -> "✓" to Color.GREEN
+                    StageState.FAILED -> "✘" to Color.RED
+                    StageState.PENDING, null -> "·" to Color.GRAY
+                }
+                val label = "$item $mark"
+                val cell = text(label).fg(color).constraint(Constraint.length(label.length))
+                if (stageStates[item] == StageState.ACTIVE) cell.bold() else cell
+            }
+        }
+        cells += text("").constraint(Constraint.fill())
+        return row(*cells.toTypedArray()).constraint(Constraint.length(1))
+    }
+
     /** The round, then one lit badge per feature: MCP cyan, MEMORY magenta, WORKFLOW yellow. */
     private fun header(): Element {
         val cells = ArrayList<Element>()
@@ -171,6 +209,7 @@ class JclawTui(
 
         return column(
             header(),
+            *listOfNotNull(flowRow()).toTypedArray(),
             panel("CHAT", chatListElement)
                 .rounded().borderColor(borderFor(CHAT_ID)).constraint(Constraint.fill()),
             panel("TRACE", traceListElement)
@@ -199,6 +238,7 @@ class JclawTui(
         private const val TRACE_ID = "trace-list"
         private const val PROMPT_ID = "jclaw-prompt"
         private val BADGE_COLORS = listOf(Color.CYAN, Color.MAGENTA, Color.YELLOW)
+        private val CONNECTORS = setOf("→", "⇄", "↺", "->", "<->")
 
         private val originalOut: PrintStream = System.out
         private val originalErr: PrintStream = System.err
@@ -267,38 +307,40 @@ class JclawTui(
             return out
         }
 
-        // Ridiculous progress phrases — claw / J.Lo / arcade-flavored.
+        // Status-line phrases while a model call is in flight. The scenario's own jokes:
+        // a mandatory AI training, a touchy People Ops organizer, and a growing pile of
+        // excuses already used on her.
         private val PHRASES = listOf(
-            "Block-checking with Jenny",
-            "Negotiating with the rocks",
-            "Consulting Selena",
-            "Manifesting credible excuses",
-            "Polishing the hallway script",
-            "Pondering plausibility tiers",
-            "Reticulating excuse splines",
-            "Asking around about Roberto",
-            "Decoding 'On the 6' (3rd verse)",
-            "Cross-referencing the block",
-            "Phoning a friend (named Jenny)",
-            "Discombobulating the verifier",
-            "Pleading with O3",
-            "Convincing Sonnet to play along",
-            "Loading Spanglish gracefully",
-            "Hustling",
-            "Translating excuses to plausible",
-            "Outsourcing decisions to a planner",
-            "Booting the JENNY_FROM_THE_BLOCK detector",
-            "Calibrating sincerity per organizer",
-            "Briefing the alibi committee",
-            "Renting a fake doctor",
-            "Generating non-perjury fillers",
-            "Buffing the believability index",
-            "Rehearsing the apology cadence",
-            "Counting rocks (she's still got them)",
-            "Pre-warming the awkward silence",
-            "Cross-checking with Selena (RIP)",
-            "Loading the 'sister visiting' template",
-            "Defragmenting last quarter's excuses",
+            "Reading the calendar, again",
+            "Checking how touchy Dana is today",
+            "Auditing last quarter's excuses",
+            "Cross-referencing burned excuses",
+            "Counting excuses already used on Dana",
+            "Checking memory for what we told her last time",
+            "Scheduling a scheduling conflict",
+            "Staging an alibi on the calendar",
+            "Booking a dentist who does not exist",
+            "Drafting a conflict that cannot move",
+            "Making the meeting look real",
+            "Calibrating sincerity for People Ops",
+            "Estimating the HR_WILL_NOTICE risk",
+            "Sorting excuses by plausibility tier",
+            "Choosing between honest and employed",
+            "Compressing the truth, deniably",
+            "Translating into corporate register",
+            "Writing the hallway script",
+            "Practicing the apologetic tone",
+            "Consulting the tool registry",
+            "Waking up the critic",
+            "Arguing with the critic",
+            "Losing the argument with the critic",
+            "Asking Gemini to keep it short",
+            "Passing the AI proficiency test, ironically",
+            "Attending the training so you don't have to",
+            "Being verifiably already proficient",
+            "Escalating to nobody in particular",
+            "Reading the room through a stream",
+            "Waiting for People Ops to notice",
         )
     }
 }
