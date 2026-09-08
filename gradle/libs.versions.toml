@@ -31,6 +31,7 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 sqlite-jdbc      = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 mcp-server       = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
 slf4j-nop        = { module = "org.slf4j:slf4j-nop", version.ref = "slf4j" }
+slf4j-simple     = { module = "org.slf4j:slf4j-simple", version.ref = "slf4j" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

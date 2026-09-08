@@ -15,12 +15,15 @@ dependencies {
     implementation(libs.koog.agents.ext)
     implementation(libs.koog.otel)
     implementation(libs.kotlinx.coroutines)
+    // Koog logs through SLF4J. Without a provider its warnings - a failed telemetry
+    // export, say - go nowhere. simple-logger prints them to stderr; the TUI files stderr.
+    runtimeOnly(libs.slf4j.simple)
 }
 
 application {
     mainClass.set("jclaw.MainKt")
     // JLine loads a native library; without this the JVM prints a four-line warning.
-    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED")
+    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED", "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn")
 }
 
 /** Three-pane TUI front end over the same pipeline. */
@@ -79,7 +82,7 @@ listOf(
     val t = tasks.register<CreateStartScripts>("startScripts_$scriptName") {
         applicationName = scriptName
         mainClass.set(main)
-        defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED")
+        defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED", "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn")
         outputDir = layout.buildDirectory.dir("scripts-$scriptName").get().asFile
         classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
     }

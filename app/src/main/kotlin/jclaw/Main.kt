@@ -8,7 +8,7 @@ import ai.koog.agents.ext.agent.subgraphWithTask
 import ai.koog.agents.ext.agent.subgraphWithVerification
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
-import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
+import jclaw.Observability.langfuse
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.embeddings.local.LLMEmbedder
@@ -99,15 +99,14 @@ fun main(): Unit = runBlocking {
             toolRegistry = mcp.registry,
         ) {
 
-            // Real traces, when there is somewhere to send them. Set LANGFUSE_HOST,
-            // LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY and every subtask, tool call
-            // and token count lands in Langfuse. Absent the keys this is a no-op, so
-            // the demo never depends on a network service being up.
-            if (System.getenv("LANGFUSE_PUBLIC_KEY") != null) {
-                install(OpenTelemetry) {
-                    setVerbose(true)
-                    addLangfuseExporter()
-                }
+            // Real traces, when there is somewhere to send them: see Observability.
+            if (Observability.enabled) install(OpenTelemetry) {
+                langfuse(
+                    round = 4,
+                    if (naive) "naive" else "domain-modelled",
+                    if (cliCritic) "critic:claude-code" else "critic:gemini",
+                    metadata = mapOf("model" to Models.flash.id, "critic" to if (cliCritic) "claude-code" else Models.pro.id),
+                )
             }
             if (!naive) install(LongTermMemory) {
                 retrieval {
@@ -165,6 +164,10 @@ fun main(): Unit = runBlocking {
             println()
         }
         feeder.cancel()
+        // Closing ends the spans Koog still holds; the flush ships them (see Observability).
+        // Before the mocks die, so the last spans still have somewhere to go.
+        jclaw.close()
+        Observability.flush()
         mcp.close()
         // The MCP stdio transport leaves a non-daemon reader thread alive that survives
         // both Client.close() and Process.destroy(), so the JVM will not exit on its own.

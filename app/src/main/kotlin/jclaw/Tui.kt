@@ -4,7 +4,7 @@ import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
-import ai.koog.agents.features.opentelemetry.integration.langfuse.addLangfuseExporter
+import jclaw.Observability.langfuse
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
 import ai.koog.embeddings.local.LLMEmbedder
@@ -53,6 +53,9 @@ fun main(args: Array<String>) {
         flow = listOf("identify", "→", "deploy", "→", "verify", "⇄", "refine"),
     )
 
+    // The agent is created inside its scope; closing it must happen from the TUI's shutdown path.
+    var closeAgent: (suspend () -> Unit)? = null
+
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
         val mcp = Mcp.boot("calendar-mcp", "organizer-mcp", onStderr = { tui.trace(it, TraceKind.TOOL_CALL) })
@@ -80,15 +83,14 @@ fun main(args: Array<String>) {
             toolRegistry = mcp.registry,
         ) {
 
-            // Real traces, when there is somewhere to send them. Set LANGFUSE_HOST,
-            // LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY and every subtask, tool call
-            // and token count lands in Langfuse. Absent the keys this is a no-op, so
-            // the demo never depends on a network service being up.
-            if (System.getenv("LANGFUSE_PUBLIC_KEY") != null) {
-                install(OpenTelemetry) {
-                    setVerbose(true)
-                    addLangfuseExporter()
-                }
+            // Real traces, when there is somewhere to send them: see Observability.
+            if (Observability.enabled) install(OpenTelemetry) {
+                langfuse(
+                    round = 4,
+                    if (naive) "naive" else "domain-modelled",
+                    if (cliCritic) "critic:claude-code" else "critic:gemini",
+                    metadata = mapOf("model" to Models.flash.id, "critic" to if (cliCritic) "claude-code" else Models.pro.id),
+                )
             }
             if (!naive) install(LongTermMemory) {
                 retrieval {
@@ -110,6 +112,7 @@ fun main(args: Array<String>) {
                 onLLMCallCompleted { _ -> tui.stopBusy() }
             }
         }
+        closeAgent = { agent.close(); Observability.flush() }
 
         tui.chat(
             "j-claw: At your service. There is a mandatory training on your calendar. " +
@@ -173,6 +176,8 @@ fun main(args: Array<String>) {
         exitProcess(1)
     } finally {
         agentScope.cancel()
+        // Closing ends the spans Koog still holds; the flush ships them (see Observability).
+        closeAgent?.let { runBlocking { it() } }
         // Same reason as the CLI front end: the MCP reader thread will not let the
         // JVM exit once the TUI has been closed.
         exitProcess(0)
