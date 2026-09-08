@@ -320,6 +320,6 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 4. Which models per phase. Ours: Gemini 3.5 Flash drafts, Gemini 3.1 Pro reviews.
 5. Whether your side uses the shared `:tui` module. The TamboUI three-pane UI from the
    JNation build is in this repo and compiles unchanged against tamboui 0.4.0 (now a
-   Central release, no longer a snapshot). Baruch's round 4 has both front ends:
-   `./gradlew run` (stdout) and `./gradlew runTui` on branch `round4`. Visual parity across
-   the two sides matters more than which one you pick — pick the same one.
+   Central release, no longer a snapshot). Baruch's side runs it in **all four rounds**
+   (`./jclaw N`), as at JNation, with `./jclaw plain` as the stdout fallback. Visual
+   parity across the two sides matters more than which one you pick — pick the same one.

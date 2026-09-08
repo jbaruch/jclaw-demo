@@ -37,7 +37,7 @@ import kotlin.system.exitProcess
  * agent -> UI call marshals through the render thread inside JclawTui, per
  * the tamboui render-thread-discipline rule.
  */
-fun main(): Unit {
+fun main(args: Array<String>) {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
     val naive = System.getenv("JCLAW_NAIVE") == "1"
     val cliCritic = System.getenv("JCLAW_CRITIC") == "cli"
@@ -47,7 +47,7 @@ fun main(): Unit {
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
-        val mcp = Mcp.boot("calendar-mcp", "organizer-mcp")
+        val mcp = Mcp.boot("calendar-mcp", "organizer-mcp", onStderr = { tui.trace(it, TraceKind.TOOL_CALL) })
         // The agent talks to Baruch through the chat pane and blocks on the prompt pane.
         val userTools = UserTools(
             outbound = { line -> tui.chat(line, ChatKind.JCLAW) },
@@ -103,8 +103,9 @@ fun main(): Unit {
             ChatKind.OK,
         )
 
-        var next: String? = "Get me out of \"${Scenario.EVENT_TITLE}\" (event id ${Scenario.EVENT_ID}), " +
-            "run by ${Scenario.ORGANIZER}."
+        // The opening sentence arrives as an argument - ./jclaw passes the same one in
+        // every round. JclawTui echoes what you type, so only the argument needs echoing.
+        var next: String? = args.joinToString(" ").ifBlank { null }
         next?.let { tui.chat("you: $it", ChatKind.YOU) }
 
         while (true) {

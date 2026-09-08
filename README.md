@@ -55,8 +55,8 @@ same models, same tools — poorer data. Watch it reach for an excuse it already
 ## Running
 
 ```bash
-git checkout round3 && ./jclaw      # any round
-./jclaw tui                         # round 4 in the three-pane UI
+./jclaw 3                           # any round, in the three-pane TUI, sentence already asked
+./jclaw plain                       # the same round on stdout (paste the sentence)
 ./jclaw skills 11                   # corporate-speak at intensity 11
 ./jclaw graph                       # pipeline.mmd, generated from the live strategy
 ```

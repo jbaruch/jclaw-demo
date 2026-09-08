@@ -58,11 +58,11 @@ is not interesting to watch.
 
 | Round | Command | Per turn | What to type, and what they should see |
 |---|---|---|---|
-| 1 | `git checkout round1 && ./jclaw` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
-| 2 | `git checkout round2 && ./jclaw` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
+| 1 | `./jclaw 1` | ~8s | *"Get me out of the AI training on Tuesday."* → it claims it staged a calendar event **it has no tools to create**. Then *"what did I just ask you?"* → no memory. |
+| 2 | `./jclaw 2` | ~17s | Same ask. Now it really acts — and **reuses an excuse already used on Dana**. |
 | 3 | `./jclaw 3` | ~10s | Same ask. It names all three burned flavors, picks fresh — and **invents a category not in the domain model**. Memory is `memory/documents/` on disk; a bare `./jclaw` re-run is a new process that knows what the first one sent. |
-| 4 | `git checkout round4 && ./jclaw` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
-| 4-TUI | `./jclaw tui` | ~20s | Three-pane UI. Agent asks in CHAT, you answer in PROMPT. |
+| 4 | `./jclaw 4` | ~20s | Same ask → typed pipeline, critic, approval. Then a follow-up question → routed to chat, agent stays alive. |
+| plain | `./jclaw plain` | — | Any round on stdout instead of the TUI. Paste the sentence (it is on the clipboard); the send gate is `y`. The fallback if the TUI misbehaves. |
 | 4b | `JCLAW_NAIVE=1 ./jclaw` | ~40s | Constraint stripped. Reaches for a burned excuse. Critic catches it. |
 | 4c | `JCLAW_CRITIC=cli ./jclaw` | ~2-3m | Critic is Claude on subscription. Rejects the fabrication, argues the truth is the stronger play. Cut line. |
 | graph | `./jclaw graph` | ~1s | `pipeline.mmd` from the live strategy. |
@@ -115,19 +115,20 @@ audience-participation beat that works without a room.
 - **Anything else** → round 3 is the safe fallback. It is visually similar to round 4
   and always completes in 40s.
 
-## The TUI build — VERIFY THIS ON A REAL TERMINAL FIRST
+## The TUI — all four rounds, as at JNation
 
-`./gradlew runTui` runs round 4 inside the TamboUI three-pane UI kept
-from the JNation build (chat pane, trace pane, prompt input, busy spinner). It compiles
-against tamboui 0.4.0 unchanged and starts without error, **but it has only been smoke
-tested under a pseudo-terminal, never driven by hand.** Run it once in your actual
-terminal at your actual streaming font size before you rely on it.
+`./jclaw N` opens every round in the TamboUI three-pane UI (chat, trace, prompt, busy
+spinner) with the round's opening sentence already asked. Tool calls, the mock servers'
+own log lines, and memory reads and writes land in TRACE. Follow-ups are typed into
+PROMPT. Round 4's send gate is the word `send` typed into PROMPT rather than `y`;
+`JCLAW_NAIVE` and `JCLAW_CRITIC` work as usual.
 
-Both env flags work here too (`JCLAW_NAIVE`, `JCLAW_CRITIC`). The send gate is the word
-`send` typed into the prompt pane rather than `y`.
+Every round's TUI has been smoke-tested under a pseudo-terminal: panes rendered, the
+sentence asked, tool calls and replies drawn. **Drive each round once by hand in your
+actual terminal at your actual streaming font size before you rely on it.**
 
-If it misbehaves on the day, `./gradlew run` is the same pipeline on
-stdout and is the build that has been dry-run repeatedly.
+If it misbehaves on the day, `./jclaw plain` is the same round on stdout: paste the
+sentence, answer `y` at the send gate.
 
 ## Which model, and why
 

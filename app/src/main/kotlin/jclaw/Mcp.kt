@@ -51,7 +51,7 @@ class Mcp private constructor(
         private val mocksDir: String =
             System.getProperty("jclaw.mocks") ?: "mocks/build/libs"
 
-        suspend fun boot(vararg servers: String): Mcp {
+        suspend fun boot(vararg servers: String, onStderr: (String) -> Unit = System.err::println): Mcp {
             val procs = mutableListOf<Process>()
             val clients = mutableMapOf<String, Client>()
             var registry = ToolRegistry.EMPTY
@@ -64,7 +64,8 @@ class Mcp private constructor(
                 // descriptor - which under `gradle run` is Gradle's - and Gradle then
                 // waits on that pipe long after this JVM has exited, hanging the
                 // terminal after a successful demo. Pipe it and pump it ourselves on a
-                // daemon thread: same visible trace lines, no shared descriptor.
+                // daemon thread: same visible trace lines, no shared descriptor. The TUI
+                // front end passes a sink that files them in its TRACE pane.
                 val proc = ProcessBuilder(javaBin, "-jar", jar.absolutePath)
                     .redirectErrorStream(false)
                     .start()
@@ -72,7 +73,7 @@ class Mcp private constructor(
 
                 Thread {
                     proc.errorStream.bufferedReader().useLines { lines ->
-                        lines.forEach { System.err.println(it) }
+                        lines.forEach(onStderr)
                     }
                 }.also { it.isDaemon = true; it.name = "$name-stderr" }.start()
 
