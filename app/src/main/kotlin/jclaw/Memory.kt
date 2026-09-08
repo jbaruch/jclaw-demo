@@ -48,7 +48,7 @@ class Memory private constructor(
     override suspend fun search(request: SearchRequest, namespace: String?): List<SearchResult<TextDocument>> {
         require(request is SimilaritySearchRequest) { "memory answers similarity searches only, not $request" }
         val hits = store.search(request, namespace)
-        val line = "  <- memory: " + hits.joinToString { it.document.id ?: "?" }.ifEmpty { "nothing yet" }
+        val line = "  <- memory: " + hits.map { it.document.id ?: "?" }.sorted().joinToString().ifEmpty { "nothing yet" }
         if (line != lastTraced) trace(line)
         lastTraced = line
         return hits
