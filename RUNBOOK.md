@@ -53,9 +53,9 @@ The stdout fallback (`./jclaw plain`) exits on a blank line or Ctrl-D.
 | Round | Command | What to demonstrate |
 |---|---|---|
 | 1 | `./jclaw 1` | Paste the opening ask, read the draft, then type **“Send Dana an email declining the Basic AI Proficiency Training on Tuesday.”** It has no tools to send it. Show the factory without a tool registry. |
-| 2 | `./jclaw 2` | Same ask. Watch the actual mock `sendDecline` call, then inspect which prior excuses it claims to avoid. **It has tools but no memory:** the calendar records declined sessions, not the reasons. Read the live answer rather than promising a repeat. |
-| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses. Read which flavor it chooses and whether the vocabulary matches the domain model. |
-| 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Only approval reaches the application's send confirmation. |
+| 2 | `./jclaw 2` | Same ask. It can now act. Compare the calendar events with its claimed "excuses avoided": it treats those events as previous excuses without evidence. Follow the live answer. |
+| 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses. Seeded and new memories both use UUID filenames. Read which flavor it chooses and whether the vocabulary matches the domain model. |
+| 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Watch the phase stopwatches, then explain the completed run in Langfuse. Only approval reaches the application's send confirmation. |
 
 Read actual output. A particular fabricated meeting, repeated excuse, new category,
 or critic objection is not guaranteed. If a model succeeds sooner, say so.
@@ -68,7 +68,9 @@ that continuity beat, because it resets the rehearsal.
 ## Round 4 — the core three-provider demo
 
 Leave the typed contracts visible beside the terminal. The FLOW row shows
-`identify → deploy → verify ⇄ refine`.
+`identify → deploy → verify ⇄ refine`. Each phase has a TRACE stopwatch, such as
+`deploy · Claude (subscription) · STARTED (running 20s)`, updated in place each
+second. Completion/failure freezes the elapsed duration; each retry gets a new row.
 
 1. Point at Gemini gathering the obligation, attendees, and prior excuse flavors.
 2. Show Claude taking a `DeclineRequest` and returning a `DeclineDeployment` through
@@ -85,6 +87,9 @@ Leave the typed contracts visible beside the terminal. The FLOW row shows
 6. After approval, read the exact latest plan. The TUI asks for `send`; any other
    reply holds it. The stdout fallback asks for `y` or `yes`. Sending is owned by
    the application after the graph returns `ReadyToSend`.
+7. Quit cleanly and show the completed run in Langfuse (walkthrough below).
+   Reserve three minutes for this inside stage 4's existing budget, before the
+   context comparison. The observability explanation is part of the core demo.
 
 A missing, malformed, failed, or timed-out Codex verdict blocks immediately. A
 human cannot override it. `JCLAW_AUTOSEND=1 ./jclaw plain` automatically confirms
@@ -98,7 +103,7 @@ retrying.
 
 ## Round 4 — context comparison
 
-Run the normal round-4 request first. Quit the TUI, then keep the same branch:
+Run the normal round-4 request and its Langfuse walkthrough first. Keep the same branch:
 
 ```bash
 JCLAW_NAIVE=1 ./jclaw
@@ -163,10 +168,33 @@ enable traces in rounds 2–4. Without credentials the feature is not installed.
 Each process is a session, and traces are named `jclaw-roundN`. Round 4 tags include
 `domain-modelled` or `naive`, `drafter:claude-code`, and `critic:codex`.
 
-Open Traces → newest and inspect phase/model details and available token/cost data.
-CLI subscription activity does not guarantee the same detailed model spans or API
-cost reporting as Gemini calls. The TUI's stage labels identify all three providers.
-Quit cleanly so the remaining spans can close and flush before showing the trace.
+After finishing or holding the send, quit cleanly so the agent's remaining spans
+close and flush. Open [the project's traces](https://us.cloud.langfuse.com/project/cmts07jea03ryad0d7jajuw1m/traces),
+refresh, and select the newest `jclaw-round4` with `critic:codex` and
+`drafter:claude-code`. Match its timestamp/session to the run you just completed.
+
+The three-minute walkthrough:
+
+1. Open the graph view and choose **Expanded** to follow the actual calls. Point
+   out deploy → verify and, if it happened, refine → verify. **Aggregated** gives
+   the compact view with repeated-step counts. Do not narrate a loop that did not run.
+2. Open **deploy**: show the typed request and Claude's draft output.
+3. Open **verify**: show the candidate, the complete Codex verdict, and feedback.
+   Its metadata contains provider/role/subscription details and the application
+   prompt supplied to Codex, generated by the same helper used during execution.
+4. Open **refine**, if present: compare the revised draft with that feedback,
+   then the next verdict. Follow the trace to `readyToSend` or `blocked`.
+5. Show each phase's **duration**. The terminal stopwatches make the wait visible;
+   the trace lets you explain where the time went.
+
+Code pointer: `install(OpenTelemetry) { langfuse(...) }` in `Tui.kt`, then the
+export setup in `Observability.kt`. `./jclaw graph` remains a brief optional look
+at the strategy's possible routes; Langfuse explains the executed run.
+
+Gemini generations include prompts/completions and their reported usage. Claude
+and Codex remain accurately represented as stage spans with typed input/output;
+they are not API billing records. Embeddings, human confirmation, application-owned
+delivery, and the subsequent memory write are outside the agent trace.
 
 ## If something fails
 
