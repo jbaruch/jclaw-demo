@@ -8,10 +8,17 @@ code. Ask Viktor when a decision is marked HIS CALL.
 
 ## What you are building
 
-The counterpart to the Koog implementation of **j-claw**, which gets Baruch out of
-*Basic AI Proficiency Training (Mandatory)* run by *Dana from People Ops*. The
-four rounds reveal missing tools, then missing memory, then the need for typed
-handoffs and a reviewer that can block sending.
+The counterpart to the Koog implementation of **j-claw**, a general-purpose
+personal assistant. The conference demonstrates it using one task: getting Baruch
+out of *Basic AI Proficiency Training (Mandatory)* run by *Dana from People Ops*.
+The four rounds reveal missing tools, then missing memory, add memory and skills,
+then introduce typed handoffs and a reviewer that can block sending.
+
+Keep the assistant's identity, welcome, and reusable skills independent of that
+task. Calendar facts come from the mock tools, prior messages from memory, and
+demo-specific background from the selected decline workflow. A greeting must not
+claim it has inspected a calendar. Ordinary questions and text rewrites must work
+without assuming a meeting, Dana, or a previous critic verdict.
 
 In round 4 the roles are fixed: **Gemini identifies, Claude subscription drafts and
 refines, Codex subscription judges**. Claude has no tools and creates no calendar
@@ -98,17 +105,69 @@ A bare `./jclaw` reruns the current branch while retaining its memory.
 
 | Round | Interaction | Capability or limitation to inspect |
 |---|---|---|
-| 1 | Ask to escape the training, then ask it to revise and quote its previous excuse | No tools, and no memory of the previous turn; compare claimed actions against those limits |
-| 2 | Same ask with mock MCP tools | It can act, but calendar history cannot tell it which excuse it used before |
-| 3 | Same ask with the three prior declines retrieved from disk | It can avoid earlier excuses; inspect whether its chosen vocabulary matches the domain model |
+| 1 | Ask to escape the training, then insist: “Send Dana an email declining the Basic AI Proficiency Training on Tuesday.” | It can draft words but has no tools to send the email; this round demonstrates missing tools |
+| 2 | Same opening ask with mock MCP tools; compare calendar results with its claimed prior excuses | It can act, but may mistake previous calendar events for excuses it actually used; no memory supplies those reasons |
+| 3 | Same ask with the three prior declines retrieved from disk, then corporate-speak at 4 and 11 | Actual sent-message memory supplies the missing evidence; a discovered skill adds reusable writing guidance |
 | 4 | Same ask, then follow-ups | Three models exchange typed data; Codex can reject, Claude can refine, and the application gates sending |
 
 Let the actual output determine the commentary. A specific lie, repeated excuse,
 or new category is not guaranteed. Every round remains a chat loop so the
 limitation can be explored through follow-ups.
 
-Round 4 classifies each input as an excuse request or ordinary chat. Ordinary chat
-returns `ChatReply` and never asks for send confirmation.
+Round 4 classifies each input as an excuse request or ordinary chat. Ordinary chat,
+including skill-based rewrites, returns `ChatReply` and never asks for send
+confirmation. Rewriting a message is not a request to run the decline workflow.
+
+### Stage 3: memory and skills — same narrative placement on both sides
+
+Introduce the skill **inside stage 3, immediately after the memory demonstration**,
+before the Tessl bridge and stage 4. The combined stage has eight minutes: roughly
+five for memory and three for skills. Skills are a core stage-3 capability and
+remain available in stage 4; they are no longer a standalone flourish after the
+critic's verdict. The skills slide is now **11**; the stage-4 pipeline is **14**,
+and the optional typed CLI adapter is **15**. Eval slides 16 and 17 stay in place.
+
+Memory reads the three committed stories from `memory/documents/`. Seeded and new
+documents all use UUID filenames; the readable story is inside the file. Persist
+the literal message from a successful `sendDecline` call, not a model summary or
+an unsent draft. A new process can retrieve it. Rewrites alone create no sent-message
+memory. Documents are the source; embeddings are a rebuildable cache.
+
+Use the same generic skill file, `skills/corporate-speak/SKILL.md`. Its capability
+is **corporate register at an intensity from 1 to 11** for any supplied update,
+request, announcement, apology, or other message. At 11 this is ridiculous comedy:
+pile on synergy, low-hanging fruit, boiling the ocean, moving the needle, circling
+back, and the rest of the terrible corporate clichés. It must be funny, not merely
+formal. Facts, numbers, intent, responsibility, and commitments
+stay intact. Do not invent enthusiasm, approvals, reasons, or promises. The skill
+contains no assumed recipient, training refusal, user biography, or approved draft.
+If no source text is supplied in the request or conversation, ask for it.
+
+**Implementation parity for Vik's agent:** discover skill folders at startup from
+an explicit absolute directory; put only their names/descriptions and locations in
+the agent's catalog; let the model select the relevant skill and read its body
+through read-only file tools before applying it. Show the directory listing and
+`SKILL.md` read in the trace. New or edited skill files are picked up on the next
+run without recompiling. Koog uses `discoverSkills`, `generateSkillsPrompt`,
+`ListDirectoryTool`, and `ReadFileTool`; use idiomatic LC4J equivalents. The skill
+belongs to ordinary interactive chat, not only a special command or a hardcoded
+rewrite step after judging. Keep the loaded skill out of unrelated task prompts.
+
+**Type this in the normal stage-3 chat, then repeat at intensity 11:**
+
+> Use the corporate-speak skill at intensity 4 to rewrite: The release is delayed because tests are failing. I will send an update tomorrow.
+
+> Use the corporate-speak skill at intensity 11 to rewrite: The release is delayed because tests are failing. I will send an update tomorrow.
+
+**See this:** the skill catalog leads to a visible file read, then two distinct
+registers of the same facts. At 11, the delay, failing tests, and tomorrow's update
+still mean the same thing. No calendar or organizer action is needed.
+
+**Highlight in code:** the skill's frontmatter and intensity/preservation rules,
+then the discovery/catalog/read-tool wiring beside stage 3's memory installation.
+The instructions live in a file the agent chooses to read. Do not paste its body
+or the example output into the generic system prompt. If late, shorten the second
+rewrite; retain the skill introduction on both sides.
 
 ### 4. The pipeline and the veto
 
@@ -134,7 +193,7 @@ inside the current Koog graph and no human override of a rejected plan.
 | `deploy` | `DeclineRequest` → `DeclineDeployment` | Claude subscription | no CLI or MCP tools |
 | `verify` | latest plan → `DeclineCritique` | Codex subscription | supplied plan and context only; no tools |
 | `refine` | latest plan and feedback → `DeclineDeployment` | Claude subscription | no CLI or MCP tools |
-| `chatReply` | `String` → `String` | Gemini API | read tools |
+| `chatReply` | `String` → `String` | Gemini API | read tools and discovered skills |
 
 Koog carries each draft in a `ReviewAttempt` with a request-local refinement count.
 A rejection allows **two refinements**. Codex reviews each revision; rejection after
@@ -215,19 +274,52 @@ JCLAW_NAIVE=1 ./jclaw
 Ask the chat to predict the difference, then read the actual result. Do not promise
 that the naive run must repeat a burned excuse or that a refinement must succeed.
 
-## Optional observability on the Koog side
+## Observability — core stage-4 walkthrough
 
-- `./jclaw graph` emits `pipeline.mmd` from the live strategy through
-  `asMermaidDiagram()`. Human confirmation and sending occur in application code
-  outside that graph.
-- `LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` enable the
-  OpenTelemetry export. Inspect available phase/model details and token/cost data;
-  subscription CLI calls may have less detail than API calls. Round 4 labels the
-  drafter `claude-code` and critic `codex`.
+Reserve about three minutes inside stage 4, after the core run and before the
+context comparison. Both speakers explain the actual route through the multi-model
+workflow. **Koog uses Langfuse; Viktor uses his existing LangChain4j observability
+setup. LC4J does not need Langfuse or its credentials.** Show comparable step
+inputs, outputs, verdicts, and durations in each side's own tooling. The Langfuse
+instructions below are for the Koog side only.
 
-Neither is required for LC4J parity. The shared TUI is available on all four
-branches. Its header shows `j-claw` and feature badges, without a repeated stage
-name. Round 4 also shows the live FLOW row.
+`LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY` enable Koog's
+OpenTelemetry export. Finish or hold the send, then quit the TUI cleanly so the
+remaining spans close and the exporter flushes. Open
+[the project traces](https://us.cloud.langfuse.com/project/cmts07jea03ryad0d7jajuw1m/traces),
+refresh, and select the newest `jclaw-round4` with `critic:codex` and
+`drafter:claude-code`. Verify the timestamp/session. The
+[verified 2026-09-08 rehearsal](https://us.cloud.langfuse.com/project/cmts07jea03ryad0d7jajuw1m/traces/2c077ed67b9345f2173997f01225605a)
+contains rejection → refinement → approval; label it as a rehearsal if used.
+
+If hidden, use the trace toolbar's **View Options → Show Graph**, then open the
+**Graph** bar below the trace tree. Select **Expanded** at the graph's top left
+to follow each actual call, including
+separate verify attempts. **Aggregated** gives the compact shape and repeat counts.
+Inspect deploy's typed input and draft, verify's complete critique/feedback, then
+refine's revised draft and the next verdict when present. The judge's actual
+application-supplied prompt is in verify metadata; its question is about the best
+available plan, not truthfulness. Follow the result actually recorded.
+
+The native Koog stage spans retain their hierarchy and graph metadata and expose
+typed inputs/outputs. Claude/Codex spans identify provider, client, subscription
+authentication, and role. Gemini generations expose their available model/usage
+details. CLI calls are not fabricated API generation or billing records; do not
+claim token/cost coverage for them. Human confirmation, the application-owned mock
+send, and memory persistence happen outside this graph.
+
+`./jclaw graph` emits `pipeline.mmd` from the live strategy through
+`asMermaidDiagram()`. It shows possible routes and remains an optional code visual;
+the Langfuse walkthrough shows the route that ran.
+
+The shared TUI is available on all four branches. Its header shows `j-claw` and
+feature badges, without a repeated stage name; stages 3 and 4 include `SKILLS`.
+Render model Markdown with normal-weight body text and actual emphasis, not visible
+markup or an entirely bold reply. Round 4 retains the FLOW row and updates each
+phase's stopwatch in place, for example
+`deploy · Claude (subscription) · STARTED (running 20s)`.
+Completed, failed, or cancelled phases freeze their duration. A repeated verify
+call gets its own timer; no growing row-per-second log.
 
 ## The ending
 
@@ -290,7 +382,15 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
 7. Time the new pipeline and agree the optional cuts; do not reuse timings from
    the retired all-Gemini or alternate-critic builds.
 8. Check the trace and TUI badges at streaming font size. Retain the FLOW row while
-   omitting redundant round/stage titles in the header.
+   omitting redundant round/stage titles in the header. Confirm Markdown rendering
+   and that phase stopwatches advance during long calls without keyboard input.
+9. In stage 3, demonstrate corporate-speak through ordinary chat after memory.
+   Check visible skill discovery/read, intensities 4 and 11 on the same generic
+   source, fact preservation, and no send or sent-message memory from a rewrite.
+   Keep this capability in stage 4 and introduce it at the same place in both talks.
+10. Open the completed run in each framework's observability tool and walk its
+    actual path, typed handoffs, and verdicts. Keep demo facts out of the generic
+    welcome, persona, and skill.
 
 ## Open questions — Viktor decides
 
@@ -304,5 +404,5 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
    authentication and typed output? Keep the visible roles and veto semantics.
 5. Use the shared `:tui` module or match its layout? Both sides should show comparable
    chat, trace, and prompt panes, with the app name and feature badges in the header.
-6. If exporting to the same Langfuse project, use the shared credentials and tag the
-   LC4J side `langchain4j` so traces can be distinguished.
+6. Use the existing LangChain4j observability setup for Viktor's walkthrough;
+   choose its clearest view of the executed workflow and typed handoffs.
