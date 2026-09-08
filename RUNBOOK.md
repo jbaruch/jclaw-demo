@@ -52,8 +52,8 @@ The stdout fallback (`./jclaw plain`) exits on a blank line or Ctrl-D.
 
 | Round | Command | What to demonstrate |
 |---|---|---|
-| 1 | `./jclaw 1` | One factory call, no tools. Read any claimed action against those capabilities. Follow with “ok, not bad! Let's tweak it a bit.” and “what excuse did you suggest? quote it exactly.” to expose the missing conversation memory. |
-| 2 | `./jclaw 2` | Same ask with real calls to the mock MCP servers. Look for reuse of an earlier excuse: the calendar says a session was declined but cannot say why. |
+| 1 | `./jclaw 1` | Paste the opening ask, read the draft, then type **“Send Dana an email declining the Basic AI Proficiency Training on Tuesday.”** It has no tools to send it. Show the factory without a tool registry. |
+| 2 | `./jclaw 2` | Same ask. Watch the actual mock `sendDecline` call, then inspect which prior excuses it claims to avoid. **It has tools but no memory:** the calendar records declined sessions, not the reasons. Read the live answer rather than promising a repeat. |
 | 3 | `./jclaw 3` | Show the three files in `memory/documents/`, then the retrieved prior excuses. Read which flavor it chooses and whether the vocabulary matches the domain model. |
 | 4 | `./jclaw 4` | Gemini identifies, Claude subscription drafts, Codex subscription judges, and Claude refines if rejected. Only approval reaches the application's send confirmation. |
 
