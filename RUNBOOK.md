@@ -123,6 +123,11 @@ own log lines, and memory reads and writes land in TRACE. Follow-ups are typed i
 PROMPT. Round 4's send gate is the word `send` typed into PROMPT rather than `y`;
 `JCLAW_NAIVE` and `JCLAW_CRITIC` work as usual.
 
+The header names the round and lights one badge per feature as the rounds go: MCP,
+MEMORY, WORKFLOW. Round 4 adds a FLOW row, `identify → deploy → verify ⇄ refine`,
+driven by Koog's own subgraph events: the running stage yellow, finished ones green.
+Whatever a library prints (kotlin-logging, SLF4J) goes to `jclaw-tui.log`, not the screen.
+
 Every round's TUI has been smoke-tested under a pseudo-terminal: panes rendered, the
 sentence asked, tool calls and replies drawn. **Drive each round once by hand in your
 actual terminal at your actual streaming font size before you rely on it.**
