@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, title = "ROUND 1 · CHATBOT")
+    val tui = JclawTui(onSubmit = { submissions.trySend(it) })
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
     agentScope.launch {
