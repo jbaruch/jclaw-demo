@@ -310,40 +310,23 @@ class JclawTui(
             return out
         }
 
-        // Status-line phrases while a model call is in flight. The scenario's own jokes:
-        // a mandatory AI training, a touchy People Ops organizer, and a growing pile of
-        // excuses already used on her.
+        // Shared by every round: these describe the wait without inventing tool activity.
         private val PHRASES = listOf(
-            "Reading the calendar, again",
-            "Checking how touchy Dana is today",
-            "Auditing last quarter's excuses",
-            "Cross-referencing burned excuses",
-            "Counting excuses already used on Dana",
-            "Checking memory for what we told her last time",
-            "Scheduling a scheduling conflict",
-            "Staging an alibi on the calendar",
-            "Booking a dentist who does not exist",
-            "Drafting a conflict that cannot move",
-            "Making the meeting look real",
-            "Calibrating sincerity for People Ops",
-            "Estimating the HR_WILL_NOTICE risk",
-            "Sorting excuses by plausibility tier",
-            "Choosing between honest and employed",
-            "Compressing the truth, deniably",
-            "Translating into corporate register",
-            "Writing the hallway script",
-            "Practicing the apologetic tone",
-            "Consulting the tool registry",
-            "Waking up the critic",
-            "Arguing with the critic",
-            "Losing the argument with the critic",
-            "Asking Gemini to keep it short",
-            "Passing the AI proficiency test, ironically",
-            "Attending the training so you don't have to",
-            "Being verifiably already proficient",
-            "Escalating to nobody in particular",
-            "Reading the room through a stream",
-            "Waiting for People Ops to notice",
+            "Thinking",
+            "Considering the request",
+            "Looking for the right words",
+            "Trying to keep this brief",
+            "Waiting for the next token",
+            "Turning tokens into an answer",
+            "Giving the GPUs a moment",
+            "Almost certainly overthinking this",
+            "Still working on it",
+            "Working through the details",
+            "Making every token count",
+            "Keeping the cursor company",
+            "Putting one token after another",
+            "Working on a useful answer",
+            "Waiting for the model",
         )
     }
 }

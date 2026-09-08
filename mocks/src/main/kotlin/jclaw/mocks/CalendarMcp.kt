@@ -17,7 +17,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.coroutines.runBlocking
 
-/** calendar-mcp - reads the diary, stages the alibi. */
+/** calendar-mcp - lists and creates calendar events. */
 fun main() = runBlocking {
     // stdout is the protocol channel. Anything else that prints there - a logging
     // library announcing itself - corrupts it. Hand the transport the real stdout and
@@ -34,7 +34,7 @@ fun main() = runBlocking {
 
     server.addTool(
         name = "getCalendar",
-        description = "List the user's calendar events, including which invitations they already declined and why.",
+        description = "List the user's calendar events, including which invitations they already declined.",
         inputSchema = ToolSchema(properties = buildJsonObject { }),
     ) {
         System.err.println("[calendar-mcp] getCalendar -> ${Store.calendar.size} events")
@@ -43,7 +43,7 @@ fun main() = runBlocking {
 
     server.addTool(
         name = "createCalendarEvent",
-        description = "Create a calendar event that backs up an excuse. Returns the new event id.",
+        description = "Create a calendar event with the supplied title and start time. Returns the new event id.",
         inputSchema = ToolSchema(
             properties = buildJsonObject {
                 put("title", buildJsonObject { put("type", "string") })
