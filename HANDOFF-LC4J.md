@@ -107,7 +107,7 @@ A bare `./jclaw` reruns the current branch while retaining its memory.
 |---|---|---|
 | 1 | Ask to escape the training, then insist: “Send Dana an email declining the Basic AI Proficiency Training on Tuesday.” | It can draft words but has no tools to send the email; this round demonstrates missing tools |
 | 2 | Same opening ask with mock MCP tools; compare calendar results with its claimed prior excuses | It can act, but may mistake previous calendar events for excuses it actually used; no memory supplies those reasons |
-| 3 | Same ask with the three prior declines retrieved from disk, then corporate-speak at 4 and 11 | Actual sent-message memory supplies the missing evidence; a discovered skill adds reusable writing guidance |
+| 3 | Same ask with prior declines retrieved from disk, then “rewrite in corporate-speak” | Disk memory supplies past sends; conversation memory supplies the current draft; the discovered skill rewrites it at default intensity 11 |
 | 4 | Same ask, then follow-ups | Three models exchange typed data; Codex can reject, Claude can refine, and the application gates sending |
 
 Let the actual output determine the commentary. A specific lie, repeated excuse,
@@ -133,6 +133,16 @@ the literal message from a successful `sendDecline` call, not a model summary or
 an unsent draft. A new process can retrieve it. Rewrites alone create no sent-message
 memory. Documents are the source; embeddings are a rebuildable cache.
 
+**Conversation memory is also required from stage 3 onward.** Keep the actual user
+and assistant turns within the current session so “rewrite in corporate-speak”
+can refer to the immediately preceding draft without repeating it. Koog uses
+`ChatMemory`; use the idiomatic LC4J conversation-memory equivalent. This is
+separate from long-term retrieval of past sends. A restart starts a new chat but
+preserves confirmed sends on disk. Do not re-ingest earlier delivery receipts
+when old chat turns are replayed. Carry conversation memory into stage 4, including
+the actual plan/verdict shown to the user; its follow-up rewrites remain chat and
+cannot silently replace an approved outbound plan.
+
 Use the same generic skill file, `skills/corporate-speak/SKILL.md`. Its capability
 is **corporate register at an intensity from 1 to 11** for any supplied update,
 request, announcement, apology, or other message. At 11 this is ridiculous comedy:
@@ -141,7 +151,9 @@ back, and the rest of the terrible corporate clichés. It must be funny, not mer
 formal. Facts, numbers, intent, responsibility, and commitments
 stay intact. Do not invent enthusiasm, approvals, reasons, or promises. The skill
 contains no assumed recipient, training refusal, user biography, or approved draft.
-If no source text is supplied in the request or conversation, ask for it.
+Default to intensity **11** when the user does not specify a level. Use the draft
+already in the conversation for follow-up rewrites. Ask for source text only if
+neither the request nor the conversation supplies it.
 
 **Implementation parity for Vik's agent:** discover skill folders at startup from
 an explicit absolute directory; put only their names/descriptions and locations in
@@ -153,18 +165,23 @@ run without recompiling. Koog uses `discoverSkills`, `generateSkillsPrompt`,
 belongs to ordinary interactive chat, not only a special command or a hardcoded
 rewrite step after judging. Keep the loaded skill out of unrelated task prompts.
 
-**Type this in the normal stage-3 chat, then repeat at intensity 11:**
+**After the stage-3 answer, type this in the same chat:**
 
-> Use the corporate-speak skill at intensity 4 to rewrite: The release is delayed because tests are failing. I will send an update tomorrow.
+> rewrite in corporate-speak
 
-> Use the corporate-speak skill at intensity 11 to rewrite: The release is delayed because tests are failing. I will send an update tomorrow.
+**Optional follow-up:**
 
-**See this:** the skill catalog leads to a visible file read, then two distinct
-registers of the same facts. At 11, the delay, failing tests, and tomorrow's update
-still mean the same thing. No calendar or organizer action is needed.
+> tone it down to 4
+
+**See this:** the skill catalog leads to a visible file read; conversation memory
+supplies the draft without a paste; intensity 11 fills it with ridiculous clichés.
+The optional follow-up reduces the jargon around the same message. No calendar or
+organizer action is needed for a rewrite. Show the restart/persistent-memory beat
+after these follow-ups, not between the draft and its rewrite. The skill stays
+generic even though this demo applies it to the meeting draft.
 
 **Highlight in code:** the skill's frontmatter and intensity/preservation rules,
-then the discovery/catalog/read-tool wiring beside stage 3's memory installation.
+then discovery/catalog/read-tool wiring and both memory installations in stage 3.
 The instructions live in a file the agent chooses to read. Do not paste its body
 or the example output into the generic system prompt. If late, shorten the second
 rewrite; retain the skill introduction on both sides.
@@ -385,8 +402,9 @@ Note the deck now has 20 slides, not the 18 an earlier draft of this file said.
    omitting redundant round/stage titles in the header. Confirm Markdown rendering
    and that phase stopwatches advance during long calls without keyboard input.
 9. In stage 3, demonstrate corporate-speak through ordinary chat after memory.
-   Check visible skill discovery/read, intensities 4 and 11 on the same generic
-   source, fact preservation, and no send or sent-message memory from a rewrite.
+   Check that the bare follow-up uses the previous draft, with visible skill read,
+   default intensity 11, and optional “tone it down to 4”. Verify fact preservation,
+   no send or sent-message memory from a rewrite, and no duplicate old receipts.
    Keep this capability in stage 4 and introduce it at the same place in both talks.
 10. Open the completed run in each framework's observability tool and walk its
     actual path, typed handoffs, and verdicts. Keep demo facts out of the generic
