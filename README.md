@@ -107,6 +107,8 @@ rehearsal memory to the three committed prior declines; bare `./jclaw` keeps it.
 The header shows `j-claw` and feature badges. Model replies render Markdown with
 normal-weight paragraphs and styled emphasis. Round 4 adds a live FLOW row and
 per-phase stopwatches that update in place and freeze when each invocation ends.
+It prints each initial or revised Claude draft before the matching Codex verdict,
+so the review transcript shows exactly what was approved or rejected.
 
 The standalone skills runner takes the message as an argument, `JCLAW_MESSAGE`,
 or standard input. It has no built-in sample message, send tool, or memory ingestion.

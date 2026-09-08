@@ -126,7 +126,8 @@ second. Completion/failure freezes the elapsed duration; each retry gets a new r
 
 1. Point at Gemini gathering the obligation, attendees, and prior excuse flavors.
 2. Show Claude taking a `DeclineRequest` and returning a `DeclineDeployment` through
-   the subscription CLI. It has no tools. It drafts a message and hallway script;
+   the subscription CLI. Read the initial draft and hallway script printed in CHAT
+   before Codex starts reviewing it. Claude has no tools;
    no supporting calendar event is created, and `fakeCalendarEventId` must be null.
 3. Show Codex reviewing the draft through its subscription CLI. Its question is
    whether this is the best available excuse and plan for Baruch's situation.
@@ -134,8 +135,9 @@ second. Completion/failure freezes the elapsed duration; each retry gets a new r
    land the story: the review found honesty useful without a truthfulness question
    or an instruction to prefer a moral answer. If it raises another objection,
    follow that one. If it approves the first draft, report that.
-5. On rejection, follow Claude's revision and Codex's next review. After two
-   refinements, another rejection produces `Blocked`; nothing can be sent.
+5. On rejection, read the revised draft printed before Codex's next review. Each
+   draft and verdict is labelled with its attempt so the audience can match them.
+   After two refinements, another rejection produces `Blocked`; nothing can be sent.
 6. After approval, read the exact latest plan. The TUI asks for `send`; any other
    reply holds it. The stdout fallback asks for `y` or `yes`. Sending is owned by
    the application after the graph returns `ReadyToSend`.
@@ -249,6 +251,13 @@ For projection, collapse the browser and Langfuse sidebars and resize the divide
 to give the graph most of the page. Collapse the detail panel when explaining the
 graph; **Show detail panel** at the far right reopens it for typed inputs/outputs.
 Use **Fit to view** (the corners icon) to fit the executed graph.
+The tree's minimum height leaves the graph 80% of the navigation pane. To restore
+this layout with the keyboard, focus the vertical divider and press **End** to
+collapse details; focus the divider above Graph and press **Home** to minimize the
+tree. Pane sizes, graph visibility, and Expanded mode save automatically in this
+browser. Langfuse dashboards support metric charts, not this agent graph. Pin or
+bookmark the trace for access; it reopens using the current saved layout, not a
+named layout snapshot. Exact pan/zoom is temporary.
 
 Code pointer: `install(OpenTelemetry) { langfuse(...) }` in `Tui.kt`, then the
 export setup in `Observability.kt`. `./jclaw graph` remains a brief optional look
