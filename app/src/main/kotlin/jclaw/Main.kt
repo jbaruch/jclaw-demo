@@ -1,6 +1,7 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
+import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
@@ -26,11 +27,12 @@ fun main(): Unit = runBlocking {
         val memory = Memory.open(LLMEmbedder(GoogleLLMClient(apiKey), GoogleModels.Embeddings.GeminiEmbedding001))
         println("[mode] " + if (naive) "NAIVE - less context and no memory" else "DOMAIN-MODELLED")
         println("[models] ${Models.flash.id} identifies; Claude subscription drafts/refines; Codex subscription judges")
+        val conversation = Conversation("${Persona.PROMPT}\n${skills.prompt}")
         val agent = AIAgent(
             id = "j-claw",
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
-                prompt = "${Persona.PROMPT}\n${skills.prompt}", llm = Models.flash, maxAgentIterations = 200,
+                prompt = conversation.systemPrompt, llm = Models.flash, maxAgentIterations = 200,
             ),
             strategy = jclawStrategy(
                 mcp, naive, skills,
@@ -39,6 +41,7 @@ fun main(): Unit = runBlocking {
             ),
             toolRegistry = mcp.registry + skills.registry,
         ) {
+            install(ChatMemory) { conversation.configure(this) }
             if (Observability.enabled) install(OpenTelemetry) {
                 langfuse(
                     4, if (naive) "naive" else "domain-modelled", "critic:codex", "drafter:claude-code",
@@ -58,7 +61,7 @@ fun main(): Unit = runBlocking {
                 if (line.isNullOrEmpty()) break
                 var deliveryAttempted = false
                 try {
-                    val result = agent.run(line)
+                    val result = conversation.run(agent, line)
                     when (result) {
                         is JclawResult.ChatReply -> println("j-claw: ${result.text}")
                         is JclawResult.Blocked -> println("BLOCKED: ${result.reason}\nNothing was sent. There is no send override.")
@@ -69,14 +72,17 @@ fun main(): Unit = runBlocking {
                             val sent = deliverApproved(result,
                                 confirm = {
                                     print("Send it? [y/N] ")
-                                    if (autoSend) { println("y (mock rehearsal)"); true }
-                                    else readlnOrNull()?.trim()?.lowercase() in setOf("y", "yes")
+                                    val answer = if (autoSend) { println("y (mock rehearsal)"); "y" }
+                                    else readlnOrNull()?.trim().orEmpty()
+                                    conversation.user(answer)
+                                    answer.lowercase() in setOf("y", "yes")
                                 },
                                 send = {
                                     deliveryAttempted = true
                                     val receipt = mcp.call("organizer-mcp", "sendDecline",
                                         mapOf("eventId" to Scenario.EVENT_ID, "message" to it.messageToOrganizer))
                                     println("sent: $receipt")
+                                    conversation.assistant("Delivered. Organizer receipt: $receipt")
                                     try {
                                         memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, it.flavor.name, it.messageToOrganizer)))
                                     } catch (error: Exception) {
@@ -84,7 +90,10 @@ fun main(): Unit = runBlocking {
                                     }
                                 },
                             )
-                            if (!sent) println("held. Nothing was sent.")
+                            if (!sent) {
+                                println("held. Nothing was sent.")
+                                conversation.assistant("Held. Nothing was sent.")
+                            }
                         }
                     }
                 } catch (cancelled: CancellationException) { throw cancelled }

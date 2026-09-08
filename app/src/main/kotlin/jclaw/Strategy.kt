@@ -2,6 +2,8 @@ package jclaw
 
 import ai.koog.agents.cli.CliAgentStructuredResponse
 import ai.koog.agents.core.agent.entity.AIAgentGraphStrategy
+import ai.koog.agents.core.agent.entity.createStorageKey
+import ai.koog.prompt.message.Message
 import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.ext.agent.subgraphWithTask
@@ -30,10 +32,6 @@ fun jclawStrategy(
     val drafter = CliCritic.claudeDrafter()
     val refiner = CliCritic.claudeRefiner()
     val judge = CliCritic.codex()
-    // CLI stages do not share Gemini's chat history. Keep the last reviewed plan
-    // explicit so a follow-up can discuss it without inventing what was decided.
-    var lastDecision: String? = null
-
     suspend fun <T> cliStage(stage: String, provider: String, call: suspend () -> T): T {
         onStage(stage, provider, PipelineStageState.STARTED)
         return try {
@@ -47,6 +45,15 @@ fun jclawStrategy(
     }
 
     return strategy<String, JclawResult>("j-claw") {
+        val turnMessages = createStorageKey<List<Message>>("conversation-turn")
+        val turnVerdicts = createStorageKey<List<String>>("conversation-verdicts")
+        val beginTurn by node<String, String> { input ->
+            llm.writeSession {
+                appendPrompt { user(input) }
+                storage.set(turnMessages, prompt.messages)
+            }
+            input
+        }
         val classify by subgraphWithTask<String, ClassifiedInput>(
             tools = emptyList(), llmModel = Models.flash,
         ) { input ->
@@ -55,11 +62,8 @@ fun jclawStrategy(
         val chatReply by subgraphWithTask<String, String>(
             tools = slices.read + skills.registry.tools, llmModel = Models.flash,
         ) { input ->
-            "Reply to the user's current request. Apply a matching runtime skill when useful.\n" +
-                (lastDecision?.let {
-                    "Only for a question about the previous plan: $it\n" +
-                        "This record contains no delivery receipt.\n"
-                } ?: "") + input
+            "Reply to the user's current request using the conversation. " +
+                "Apply a matching runtime skill when useful.\n$input"
         }
         val identify by subgraphWithTask<String, DeclineRequest>(
             tools = slices.read, llmModel = Models.flash,
@@ -77,7 +81,9 @@ fun jclawStrategy(
         val verify by node<ReviewAttempt, ReviewDecision> { attempt ->
             try {
                 val critique = cliStage("verify", "Codex (subscription)") { judge.run(attempt.plan) }
-                onVerdict("Codex ${if (critique.approved) "approved" else "rejected"}: ${critique.feedback}")
+                val verdict = "Codex ${if (critique.approved) "approved" else "rejected"}: ${critique.feedback}"
+                onVerdict(verdict)
+                storage.set(turnVerdicts, storage.get(turnVerdicts).orEmpty() + verdict)
                 reviewDecision(attempt, critique)
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -92,25 +98,39 @@ fun jclawStrategy(
             ReviewAttempt(plan, decision.attempt.refinements + 1)
         }
         val readyToSend by node<ReviewDecision, JclawResult> { decision ->
-            lastDecision = "Codex approved: ${decision.attempt.plan}. Review: ${decision.feedback}"
             JclawResult.ReadyToSend(decision.attempt.plan)
         }
         val blocked by node<ReviewDecision, JclawResult> { decision ->
-            lastDecision = "BLOCKED: ${decision.feedback}. Draft: ${decision.attempt.plan}"
             JclawResult.Blocked(decision.feedback, decision.attempt.plan)
         }
-        edge(nodeStart forwardTo classify)
+        val rememberReply by node<JclawResult, JclawResult> { result ->
+            // Persist the actual exchange, including CLI-produced drafts, through ChatMemory.
+            // Classifier/worker instructions and finalize-task JSON are internal to this run.
+            val exchange = storage.getValue(turnMessages)
+            val verdicts = storage.get(turnVerdicts).orEmpty()
+            llm.writeSession {
+                prompt = prompt.withMessages { exchange }
+                appendPrompt {
+                    verdicts.forEach { assistant(it) }
+                    assistant(result.conversationText())
+                }
+            }
+            result
+        }
+        edge(nodeStart forwardTo beginTurn)
+        edge(beginTurn forwardTo classify)
         edge(classify forwardTo identify onCondition { it.intent == Intent.EXCUSE_REQUEST } transformed { it.userMessage })
         edge(classify forwardTo chatReply onCondition { it.intent == Intent.CHAT } transformed { it.userMessage })
-        edge(chatReply forwardTo nodeFinish transformed { JclawResult.ChatReply(it) })
+        edge(chatReply forwardTo rememberReply transformed { JclawResult.ChatReply(it) })
         edge(identify forwardTo deploy)
         edge(deploy forwardTo verify)
         edge(verify forwardTo readyToSend onCondition { it.route == ReviewRoute.APPROVE })
-        edge(readyToSend forwardTo nodeFinish)
+        edge(readyToSend forwardTo rememberReply)
         edge(verify forwardTo refine onCondition { it.route == ReviewRoute.REFINE })
         edge(refine forwardTo verify)
         edge(verify forwardTo blocked onCondition { it.route == ReviewRoute.BLOCK })
-        edge(blocked forwardTo nodeFinish)
+        edge(blocked forwardTo rememberReply)
+        edge(rememberReply forwardTo nodeFinish)
     }
 }
 

@@ -38,3 +38,14 @@ suspend fun deliverApproved(
     send(result.deployment)
     return true
 }
+
+/** The user-visible result retained in session history; readiness never implies delivery. */
+internal fun JclawResult.conversationText(): String = when (this) {
+    is JclawResult.ChatReply -> text
+    is JclawResult.ReadyToSend -> "Codex approved this plan for your consideration.\n" +
+        "Message: ${deployment.messageToOrganizer}\nHallway script: ${deployment.hallwayScript}\n" +
+        "Awaiting your send/hold decision. Nothing has been sent yet."
+    is JclawResult.Blocked -> "BLOCKED: $reason\n" +
+        (deployment?.let { "Draft message: ${it.messageToOrganizer}\nHallway script: ${it.hallwayScript}\n" } ?: "") +
+        "Nothing was sent."
+}

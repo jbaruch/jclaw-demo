@@ -108,7 +108,9 @@ class Memory private constructor(
 internal fun confirmedDeclines(messages: List<Message>): List<MemoryRecord> {
     val pending = mutableMapOf<String, MessagePart.Tool.Call>()
     return buildList {
-        for (message in messages) when (message) {
+        // ChatMemory loads prior turns, whose receipts were ingested on their original run.
+        val currentTurn = messages.indexOfLast { it.isUserTurn() }.coerceAtLeast(0)
+        for (message in messages.drop(currentTurn)) when (message) {
             is Message.Assistant -> message.parts.filterIsInstance<MessagePart.Tool.Call>().forEach { call ->
                 if (call.tool == "sendDecline") call.id?.let { pending[it] = call }
             }

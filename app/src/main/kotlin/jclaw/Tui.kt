@@ -1,6 +1,7 @@
 package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
+import ai.koog.agents.chatMemory.feature.ChatMemory
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.features.eventHandler.feature.handleEvents
 import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
@@ -67,11 +68,12 @@ fun main(args: Array<String>) {
         tui.trace("mode: " + if (naive) "NAIVE — less context, no memory" else "DOMAIN-MODELLED", TraceKind.SUBGRAPH_START)
         tui.trace("models: ${Models.flash.id} → Claude subscription → Codex subscription", TraceKind.SUBGRAPH_START)
 
+        val conversation = Conversation("${Persona.PROMPT}\n${skills.prompt}")
         val agent = AIAgent(
             id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             agentConfig = AIAgentConfig.withSystemPrompt(
-                prompt = "${Persona.PROMPT}\n${skills.prompt}",
+                prompt = conversation.systemPrompt,
                 llm = Models.flash,
                 maxAgentIterations = 200,
             ),
@@ -93,6 +95,7 @@ fun main(args: Array<String>) {
             ),
             toolRegistry = mcp.registry + skills.registry,
         ) {
+            install(ChatMemory) { conversation.configure(this) }
 
             // Real traces, when there is somewhere to send them: see Observability.
             if (Observability.enabled) install(OpenTelemetry) {
@@ -150,7 +153,7 @@ fun main(args: Array<String>) {
             var deliveryAttempted = false
             try {
                 tui.resetFlow()
-                val result = agent.run(prompt)
+                val result = conversation.run(agent, prompt)
                 tui.finishTraceStages(TraceStageState.COMPLETED)
                 if (result is JclawResult.ChatReply) {
                     tui.chat("j-claw: ${result.text}", ChatKind.JCLAW)
@@ -170,13 +173,16 @@ fun main(args: Array<String>) {
                 val delivered = deliverApproved(ready,
                     confirm = {
                         tui.chat("Send it? type 'send' to deliver, anything else to hold.", ChatKind.OK)
-                        submissions.receive().trim().equals("send", ignoreCase = true)
+                        val answer = submissions.receive().trim()
+                        conversation.user(answer)
+                        answer.equals("send", ignoreCase = true)
                     },
                     send = {
                         deliveryAttempted = true
                         val receipt = mcp.call("organizer-mcp", "sendDecline",
                             mapOf("eventId" to Scenario.EVENT_ID, "message" to it.messageToOrganizer))
                         tui.chat("j-claw: delivered. $receipt", ChatKind.OK)
+                        conversation.assistant("Delivered. Organizer receipt: $receipt")
                         try {
                             memory.add(listOf(Memory.story(Scenario.EVENT_TITLE, Scenario.ORGANIZER, it.flavor.name, it.messageToOrganizer)))
                         } catch (error: Exception) {
@@ -184,7 +190,10 @@ fun main(args: Array<String>) {
                         }
                     },
                 )
-                if (!delivered) tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
+                if (!delivered) {
+                    tui.chat("j-claw: held. Nothing was sent.", ChatKind.OK)
+                    conversation.assistant("Held. Nothing was sent.")
+                }
             } catch (c: CancellationException) {
                 tui.finishTraceStages(TraceStageState.CANCELLED)
                 throw c
