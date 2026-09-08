@@ -20,6 +20,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlin.io.path.Path
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
@@ -29,10 +30,11 @@ import kotlin.system.exitProcess
  * so the audience sees the read before the first tool and the write after the send.
  */
 fun main(args: Array<String>) {
+    JclawTui.quietStdStreams(Path("jclaw-tui.log"))
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) })
+    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, title = "ROUND 3 · MEMORY", features = listOf("MCP", "MEMORY"))
     var procs: List<Process> = emptyList()
 
     val agentScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineName("jclaw-agent"))
@@ -66,7 +68,10 @@ fun main(args: Array<String>) {
             }
             handleEvents {
                 onToolCallStarting { tui.trace("   ↪ ${it.toolName}(${it.toolArgs})", TraceKind.TOOL_CALL) }
-                onLLMCallStarting { _ -> tui.startBusy() }
+                onLLMCallStarting {
+                    tui.trace("→ ${it.model.id} · ${it.prompt.messages.size} messages · ${it.tools.size} tools", TraceKind.LLM)
+                    tui.startBusy()
+                }
                 onLLMCallCompleted { _ -> tui.stopBusy() }
             }
         }
@@ -92,6 +97,11 @@ fun main(args: Array<String>) {
 
     try {
         tui.run()
+    } catch (t: Throwable) {
+        JclawTui.restoreStdStreams()
+        println("j-claw TUI died: $t - details in jclaw-tui.log")
+        t.printStackTrace()
+        exitProcess(1)
     } finally {
         agentScope.cancel()
         procs.forEach { it.destroyForcibly() }
