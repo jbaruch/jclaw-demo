@@ -6,16 +6,20 @@ dependencies {
     implementation(libs.koog.llms.all)
     implementation(libs.koog.google)
     implementation(libs.koog.mcp)
+    implementation(libs.koog.otel)
     implementation(libs.koog.memory)
     implementation(libs.koog.rag.vector)
     implementation(libs.koog.embeddings)
     implementation(libs.kotlinx.coroutines)
+    // Koog logs through SLF4J. Without a provider its warnings - a failed telemetry
+    // export, say - go nowhere. simple-logger prints them to stderr; the TUI files stderr.
+    runtimeOnly(libs.slf4j.simple)
 }
 
 application {
     mainClass.set("jclaw.MainKt")
     // JLine loads a native library; without this the JVM prints a four-line warning.
-    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED")
+    applicationDefaultJvmArgs = listOf("--enable-native-access=ALL-UNNAMED", "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn")
 }
 
 tasks.named<JavaExec>("run") {
@@ -41,7 +45,7 @@ tasks.register<JavaExec>("runTui") {
 val tuiScripts = tasks.register<CreateStartScripts>("startScripts_app-tui") {
     applicationName = "app-tui"
     mainClass.set("jclaw.TuiKt")
-    defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED")
+    defaultJvmOpts = listOf("--enable-native-access=ALL-UNNAMED", "-Dorg.slf4j.simpleLogger.defaultLogLevel=warn")
     outputDir = layout.buildDirectory.dir("scripts-app-tui").get().asFile
     classpath = tasks.named<CreateStartScripts>("startScripts").get().classpath
 }

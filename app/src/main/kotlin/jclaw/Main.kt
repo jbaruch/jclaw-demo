@@ -2,6 +2,8 @@ package jclaw
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.features.eventHandler.feature.handleEvents
+import ai.koog.agents.features.opentelemetry.feature.OpenTelemetry
+import jclaw.Observability.langfuse
 import ai.koog.agents.longtermmemory.feature.FailurePolicy
 import ai.koog.agents.longtermmemory.feature.LongTermMemory
 import ai.koog.agents.longtermmemory.retrieval.search.SimilaritySearchStrategy
@@ -34,6 +36,7 @@ fun main(): Unit = runBlocking {
 
     try {
         val jclaw = AIAgent(
+            id = "j-claw",   // names the agent spans in Langfuse; a UUID otherwise
             promptExecutor = simpleGoogleAIExecutor(apiKey),
             systemPrompt = PERSONA,
             llmModel = Models.flash,
@@ -49,6 +52,9 @@ fun main(): Unit = runBlocking {
                     documentExtractor = Memory.whatJclawToldDana
                     failurePolicy = FailurePolicy.FAIL_FAST
                 }
+            }
+            if (Observability.enabled) install(OpenTelemetry) {
+                langfuse(3, "memory", metadata = mapOf("model" to Models.flash.id))
             }
             handleEvents {
                 onToolCallStarting { println("  -> ${it.toolName}(${it.toolArgs})") }
@@ -67,6 +73,9 @@ fun main(): Unit = runBlocking {
             println("j-claw: " + jclaw.run(line))
             println()
         }
+        // Closing ends the spans Koog still holds; the flush ships them (see Observability).
+        jclaw.close()
+        Observability.flush()
     } finally {
         procs.forEach { it.destroyForcibly() }
         procs.forEach { runCatching { it.waitFor(2, java.util.concurrent.TimeUnit.SECONDS) } }
