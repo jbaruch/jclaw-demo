@@ -31,7 +31,7 @@ enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
 
 /**
  * Three-pane TUI for the j-claw demo, plus a ridiculous status line.
- *   HEADER — which round this is, and badges for the features it has (MCP, MEMORY, ...)
+ *   HEADER — app identity, and badges for the features it has (MCP, MEMORY, ...)
  *   CHAT   — the conversation between Baruch and j-claw
  *   TRACE  — the live agent trace (subgraph entries/exits, tool calls)
  *   STATUS — ridiculous "computing... combobulating..." while LLMs are in flight
@@ -48,7 +48,7 @@ enum class TraceKind { SUBGRAPH_START, SUBGRAPH_END, TOOL_CALL, LLM }
  */
 class JclawTui(
     private val onSubmit: (String) -> Unit,
-    /** Shown in the header, e.g. "ROUND 2 · TOOLS + MCP". */
+    /** App identity shown in the header; feature names belong in [features]. */
     private val title: String = "j-claw",
     /** One badge per feature this round has, in order: the deck lights them up round by round. */
     private val features: List<String> = emptyList(),
@@ -180,7 +180,7 @@ class JclawTui(
         return row(*cells.toTypedArray()).constraint(Constraint.length(1))
     }
 
-    /** The round, then one lit badge per feature: MCP cyan, MEMORY magenta, WORKFLOW yellow. */
+    /** App identity, then one lit badge per feature: MCP cyan, MEMORY magenta, WORKFLOW yellow. */
     private fun header(): Element {
         val cells = ArrayList<Element>()
         cells += badge(title, Color.GREEN)

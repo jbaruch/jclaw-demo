@@ -37,7 +37,7 @@ fun main(args: Array<String>) {
     val apiKey = requireNotNull(System.getenv("GOOGLE_API_KEY")) { "GOOGLE_API_KEY is not set" }
 
     val submissions = Channel<String>(Channel.UNLIMITED)
-    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, title = "ROUND 3 · MEMORY", features = listOf("MCP", "MEMORY"))
+    val tui = JclawTui(onSubmit = { submissions.trySend(it) }, features = listOf("MCP", "MEMORY"))
     var procs: List<Process> = emptyList()
 
     // The agent is created inside its scope; closing it must happen from the TUI's shutdown path.
