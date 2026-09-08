@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # Stage launcher.
 #
-#   ./jclaw 1        round 1 - switches branch silently, seeds the clipboard, runs
-#                    (round 1 follow-ups, typed by hand: "ok, not bad! Let's tweak it
-#                     a bit." then "what did I just ask you about?")
+#   ./jclaw 1        round 1 - switches branch silently, opens the three-pane TUI with
+#                    the round's opening sentence already asked (round 1 follow-ups,
+#                    typed into the PROMPT pane: "ok, not bad! Let's tweak it a bit."
+#                    then "what excuse did you suggest? quote it exactly.")
 #   ./jclaw 2|3|4    same for the other rounds
-#   ./jclaw          re-run whatever round is checked out
+#   ./jclaw          re-run whatever round is checked out, in the TUI
+#   ./jclaw plain    the same round on stdout, no TUI - paste the sentence (it is on
+#                    the clipboard). The fallback if the TUI misbehaves.
 #   ./jclaw tui      round 4 in the three-pane UI          (round4 only)
 #   ./jclaw skills N corporate-speak at intensity N        (round4 only)
 #   ./jclaw graph    emit pipeline.mmd from the strategy   (round4 only)
@@ -54,5 +57,6 @@ case "${1:-run}" in
   skills) export JCLAW_LEVEL="${2:-11}"; exec app/build/install/app/bin/app-skills ;;
   graph)  exec app/build/install/app/bin/app-graph ;;
   codex)  exec app/build/install/app/bin/app-codex ;;
-  run|*)  exec app/build/install/app/bin/app ;;
+  plain)  exec app/build/install/app/bin/app ;;
+  run|*)  exec app/build/install/app/bin/app-tui "$ASK" ;;
 esac
